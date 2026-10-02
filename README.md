@@ -9,6 +9,8 @@ is the part that hands off and restarts a session at a token threshold.
 
 ```
 harmonik-v3             CLI (hk3): launch/resume agents, build role config
+AGENTS.md               agent context (CLAUDE.md is a symlink to it)
+docs/                   documentation; index in docs/README.md
 .env                    local settings (not committed)
 config/
   base.yaml             config shared by every role
@@ -45,42 +47,23 @@ The project is the git root of the current directory (override with
 ### Agents
 
 - **Name**: `--name` or `HK3_AGENT_NAME`. By convention a NATO word (alpha,
-  bravo, charlie, ...). It becomes the Claude session name (`claude --name`),
-  shows in the status line, and fills `{name}` in keeper's prompts.
-- **Role**: `--role` or `HK3_ROLE`, default `general` (`HK3_DEFAULT_ROLE`).
-  `general` is the base config with no extra skills.
-- **Status line**: `<name> · <role>`, then the output of the status line the
-  project or user already had (project `.claude/settings.local.json`, then
-  `.claude/settings.json`, then `~/.claude/settings.json`), given the same
-  input. Override the inner command with `HK3_STATUSLINE_INNER`, or replace
-  the whole thing by setting `settings.statusLine` in `config.yaml`.
+  bravo, charlie, ...). It becomes the Claude session name and shows in the
+  status line.
+- **Role**: `--role` or `HK3_ROLE`, default `general` (the base config, no
+  extra skills).
+- **Status line**: `<name> · <role>`, followed by the status line the project
+  or user already had.
 
 ## Project config
 
-Each project keeps its config in `<project>/.harmonik-v3/`. `hk3 init`
-writes it for you.
-
-- `config.env`: `HK3_*` (launcher) and `KEEPER_*` (keeper) settings. The
-  precedence is shell env, then this file, then this repo's `.env`, then the
-  defaults in `harmonik-v3`. Besides the restart settings it can set
-  `KEEPER_HANDOFF_PROMPT`, `KEEPER_STARTUP_KIND` (`prompt` or `command`), and
-  `KEEPER_STARTUP_PROMPT`, so the restart cycle uses the project's own handoff
-  convention. `{name}` and `{role}` are substituted.
-- `config.yaml`: overlay merged last over base + role. A `null` deletes a key;
-  `skills_remove: [...]` drops skills.
-- `build/`: generated role output (gitignore it).
+Each project keeps its config in `<project>/.harmonik-v3/` (`config.env`,
+`config.yaml`, `build/`). `hk3 init` writes it for you. Every setting and the
+merge rules are in [docs/configuration.md](docs/configuration.md).
 
 ## Roles
 
-A role is `config/base.yaml` merged with `config/roles/<role>.yaml`, then the
-project's `.harmonik-v3/config.yaml`: maps merge deeply (later wins), lists
-concatenate with duplicates removed. Keys:
-
-- `skills` — names from `skills/`, loaded as a per-role plugin
-  (`--plugin-dir`); Claude shows them as `keeper-role:<name>`.
-- `settings` — any Claude settings keys, passed as JSON via `--settings`.
-  The base hides built-in and user-level skills, so a role sees only its own.
-- `description` — used in the generated plugin manifest.
+A role is `config/base.yaml` + `config/roles/<role>.yaml` + the project's
+`.harmonik-v3/config.yaml`; see [docs/configuration.md](docs/configuration.md#roles).
 
 | Role | Skills (plus `handoff`) |
 |---|---|
@@ -89,3 +72,7 @@ concatenate with duplicates removed. Keys:
 | reviewer | review-checklist, review-report |
 | builder | incremental-build, commit-hygiene |
 | tester | test-plan, bug-report |
+
+## Docs
+
+See [docs/README.md](docs/README.md). Agents start at [AGENTS.md](AGENTS.md).
