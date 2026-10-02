@@ -1,0 +1,20 @@
+# Base config shared by every role. Role files in config/roles/ are merged
+# on top of this by scripts/compose-role:
+#   - maps merge deeply (the role wins on conflicts)
+#   - lists are concatenated (duplicates removed)
+
+# Skills from the library in skills/ that every role gets.
+skills:
+  - handoff
+
+# Claude Code settings, emitted as JSON and passed via `claude --settings`.
+# Any key valid in a Claude settings.json can go here.
+settings:
+  # Hide Claude's built-in skills (dataviz, claude-api, schedule, ...).
+  disableBundledSkills: true
+  # Hide user-level skills from ~/.claude/skills so a role sees only its own.
+  skillOverrides:
+    session-handoff: "off"
+    session-resume: "off"
+    # Built-in, but not removed by disableBundledSkills.
+    plugin-authoring: "off"

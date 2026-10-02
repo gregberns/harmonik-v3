@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "claude-keeper",
+  "version": "0.1.0",
+  "description": "POC: on a low absolute-token threshold, ask the agent to write HANDOFF.md, run Claude's own compaction, then auto-submit a startup message.",
+  "author": {
+    "name": "Greg Berns",
+    "email": "gregberns@gmail.com"
+  }
+}

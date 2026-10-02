@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# keeper — launch and manage agent sessions for this project.
+#
+# Usage:
+#   keeper new agent claude [--role <role>] [-- <extra claude args>]
+#   keeper resume agent claude [<session-id>] [--role <role>] [-- <extra claude args>]
+#   keeper build roles
+#   keeper build role <role>
+#   keeper list roles
+#
+# Configuration: defaults below, overridden by <repo>/.env, overridden by the
+# shell environment.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$ROOT/plugins/claude-keeper"
+ROLES_DIR="$ROOT/config/roles"
+COMPOSE_ROLE="$ROOT/scripts/compose-role"
+
+# --- Defaults (override in .env) -------------------------------------------
+# Context tokens at which the claude-keeper plugin runs its handoff/restart cycle.
+: "${KEEPER_DEFAULT_RESTART_TOKEN_COUNT:=200000}"
+# 1 = /clear instead of native compaction.
+: "${KEEPER_DEFAULT_RESTART_CLEAR_MODE:=0}"
+# 1 = pass --dangerously-skip-permissions to claude.
+: "${KEEPER_DEFAULT_CLAUDE_SKIP_PERMISSIONS:=1}"
+# 1 = pass --remote-control to claude.
+: "${KEEPER_DEFAULT_CLAUDE_REMOTE_CONTROL:=0}"
+
+usage() {
+  cat <<EOF
+Usage: keeper <command>
+
+Commands:
+  new agent claude [--role <role>] [-- args...]
+      Start a new Claude session.
+  resume agent claude [<session-id>] [--role <role>] [-- args...]
+      Resume a Claude session (no id: open the picker).
+  build roles | build role <role>
+      Compose role config (config/) into build/roles/<role>/.
+  list roles
+      List the roles defined in config/roles/.
+
+Sessions run from $ROOT with the claude-keeper plugin loaded
+for that launch only. --role composes the role first and loads its settings
+and skills. Args after -- are passed through to claude.
+Configuration is read from $ROOT/.env
+EOF
+}
+
+die() { echo "keeper: $*" >&2; exit 1; }
+
+# Precedence: shell environment > .env > defaults above.
+load_env() {
+  local env_file="$ROOT/.env"
+  if [[ -f "$env_file" ]]; then
+    local name names=() values=()
+    for name in $(compgen -e | grep '^KEEPER_' || true); do
+      names+=("$name"); values+=("${!name}")
+    done
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+    local i
+    for i in "${!names[@]}"; do export "${names[$i]}=${values[$i]}"; done
+  fi
+  : "${KEEPER_RESTART_TOKEN_COUNT:=$KEEPER_DEFAULT_RESTART_TOKEN_COUNT}"
+  : "${KEEPER_RESTART_CLEAR_MODE:=$KEEPER_DEFAULT_RESTART_CLEAR_MODE}"
+  : "${KEEPER_CLAUDE_SKIP_PERMISSIONS:=$KEEPER_DEFAULT_CLAUDE_SKIP_PERMISSIONS}"
+  : "${KEEPER_CLAUDE_REMOTE_CONTROL:=$KEEPER_DEFAULT_CLAUDE_REMOTE_CONTROL}"
+  export KEEPER_RESTART_TOKEN_COUNT KEEPER_RESTART_CLEAR_MODE
+}
+
+list_roles() {
+  local f
+  for f in "$ROLES_DIR"/*.yaml; do
+    [[ -e "$f" ]] && basename "$f" .yaml
+  done
+}
+
+# build_role <role>: compose the role; prints its build dir.
+build_role() { "$COMPOSE_ROLE" "$1"; }
+
+# run_claude <role> <claude args...>: launch claude with keeper's plugin,
+# flags, and (if <role> is non-empty) the role's settings and skills.
+run_claude() {
+  local role="$1"; shift
+  command -v claude >/dev/null || die "claude not found on PATH"
+  [[ -d "$PLUGIN_DIR" ]] || die "plugin not found at $PLUGIN_DIR"
+
+  local flags=(--plugin-dir "$PLUGIN_DIR")
+  if [[ -n "$role" ]]; then
+    local role_dir
+    role_dir="$(build_role "$role")" || exit 1
+    flags+=(--settings "$role_dir/settings.json" --plugin-dir "$role_dir/plugin")
+    export KEEPER_ROLE="$role"
+  fi
+  [[ "$KEEPER_CLAUDE_SKIP_PERMISSIONS" == 1 ]] && flags+=(--dangerously-skip-permissions)
+  [[ "$KEEPER_CLAUDE_REMOTE_CONTROL" == 1 ]] && flags+=(--remote-control)
+
+  # Function hooks are early access; the plugin does nothing without this.
+  export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
+  # The plugin stays inert unless keeper launched it.
+  export KEEPER_ENABLED=1
+
+  echo "keeper: role ${role:-none}, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
+  echo "keeper: claude ${flags[*]} $*" >&2
+  # Sessions are stored per directory; always launch from the project root so
+  # resume finds them.
+  cd "$ROOT"
+  exec claude "${flags[@]}" "$@"
+}
+
+# agent_claude <new|resume> [args...]: parse keeper options, then launch.
+agent_claude() {
+  local verb="$1"; shift
+  local role="" session_id="" passthrough=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --role) [[ $# -ge 2 ]] || die "--role needs a value"; role="$2"; shift 2 ;;
+      --role=*) role="${1#--role=}"; shift ;;
+      --) shift; passthrough=("$@"); break ;;
+      -*) die "unknown option: $1 (pass claude flags after --)" ;;
+      *)
+        [[ "$verb" == resume && -z "$session_id" ]] || die "unexpected argument: $1"
+        session_id="$1"; shift ;;
+    esac
+  done
+
+  local args=()
+  if [[ "$verb" == resume ]]; then
+    args+=(--resume)
+    [[ -n "$session_id" ]] && args+=("$session_id")
+  fi
+  run_claude "$role" ${args[@]+"${args[@]}"} ${passthrough[@]+"${passthrough[@]}"}
+}
+
+cmd_agent() {
+  local verb="$1" what="${2:-}" runtime="${3:-}"
+  [[ "$what" == agent ]] || { usage >&2; exit 1; }
+  shift 3 2>/dev/null || shift $#
+  load_env
+  case "$runtime" in
+    claude) agent_claude "$verb" "$@" ;;
+    "") die "missing agent runtime (try: keeper $verb agent claude)" ;;
+    *) die "unknown agent runtime: $runtime" ;;
+  esac
+}
+
+cmd_build() {
+  case "${1:-}" in
+    roles)
+      local role
+      for role in $(list_roles); do build_role "$role"; done ;;
+    role)
+      [[ -n "${2:-}" ]] || die "usage: keeper build role <role>"
+      build_role "$2" ;;
+    *) die "usage: keeper build roles | keeper build role <role>" ;;
+  esac
+}
+
+cmd_list() {
+  case "${1:-}" in
+    roles) list_roles ;;
+    *) die "usage: keeper list roles" ;;
+  esac
+}
+
+case "${1:-}" in
+  new|resume) cmd_agent "$@" ;;
+  build) shift; cmd_build "$@" ;;
+  list) shift; cmd_list "$@" ;;
+  -h|--help|help|"") usage ;;
+  *) usage >&2; exit 1 ;;
+esac

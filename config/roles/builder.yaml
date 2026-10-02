@@ -1,0 +1,4 @@
+description: "Implements tasks in small verified steps and prepares commits."
+skills:
+  - incremental-build
+  - commit-hygiene

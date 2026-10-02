@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# compose-role — build a role's Claude launch artifacts from YAML config.
+#
+# Usage: scripts/compose-role <role> [<out-dir>]
+#
+# Merges config/base.yaml with config/roles/<role>.yaml (maps merge deeply,
+# role wins; lists concatenate, duplicates removed) and writes to
+# <out-dir> (default build/roles/<role>):
+#
+#   role.yaml                  the merged config, for inspection
+#   settings.json              .settings, for `claude --settings`
+#   plugin/                    a plugin holding the role's skills, for
+#                              `claude --plugin-dir`, copied from skills/
+#
+# Requires yq (mikefarah, v4) and jq.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BASE="$ROOT/config/base.yaml"
+ROLES_DIR="$ROOT/config/roles"
+SKILLS_DIR="$ROOT/skills"
+
+die() { echo "compose-role: $*" >&2; exit 1; }
+
+role="${1:-}"
+[[ -n "$role" ]] || die "usage: compose-role <role> [<out-dir>]"
+role_file="$ROLES_DIR/$role.yaml"
+[[ -f "$role_file" ]] || die "unknown role '$role' (no $role_file)"
+out="${2:-$ROOT/build/roles/$role}"
+
+for tool in yq jq; do command -v "$tool" >/dev/null || die "$tool not found on PATH"; done
+
+merged="$(yq eval-all '
+  . as $doc ireduce ({}; . *+ $doc)
+  | .skills = ((.skills // []) | unique)
+  | .settings = (.settings // {})
+  | .role = "'"$role"'"
+  | ... comments = ""
+' "$BASE" "$role_file")"
+
+# Every listed skill must exist in the library.
+missing=()
+while IFS= read -r skill; do
+  [[ -z "$skill" ]] && continue
+  [[ -f "$SKILLS_DIR/$skill/SKILL.md" ]] || missing+=("$skill")
+done < <(yq '.skills[]' <<<"$merged")
+((${#missing[@]} == 0)) || die "role '$role' lists skills not in $SKILLS_DIR: ${missing[*]}"
+
+rm -rf "$out"
+mkdir -p "$out/plugin/.claude-plugin" "$out/plugin/skills"
+
+printf '%s\n' "$merged" > "$out/role.yaml"
+yq -o=json '.settings' <<<"$merged" | jq . > "$out/settings.json"
+
+jq -n --arg role "$role" --arg desc "$(yq '.description // ""' <<<"$merged")" '{
+  name: "keeper-role",
+  version: "0.0.0",
+  description: ("Skills for the keeper role \($role). \($desc)" | rtrimstr(" "))
+}' > "$out/plugin/.claude-plugin/plugin.json"
+
+while IFS= read -r skill; do
+  [[ -z "$skill" ]] && continue
+  cp -R "$SKILLS_DIR/$skill" "$out/plugin/skills/$skill"
+done < <(yq '.skills[]' <<<"$merged")
+
+echo "$out"
