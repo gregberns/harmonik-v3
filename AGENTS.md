@@ -46,6 +46,9 @@ Keep it under 60 lines. When a section grows past a few lines, move it to
 
 ## Docs
 
+- `plans/<date>-<name>/`: one folder per larger piece of work (requirements, spec, tickets, reviews)
+- [docs/concepts/zero-framework-cognition.md](docs/concepts/zero-framework-cognition.md): hk3 provides structure, never judgment
+
 - [docs/architecture.md](docs/architecture.md): components, launch flow, design decisions
 - [docs/configuration.md](docs/configuration.md): settings, config files, role merging
 - [docs/testing.md](docs/testing.md): how to verify changes
