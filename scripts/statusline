@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# statusline — Claude status line for hk3 sessions: "<name> · <role>", then
+# the output of the status line the project or user already had
+# ($HK3_STATUSLINE_INNER, found by hk3 at launch), fed the same JSON on stdin.
+input="$(cat)"
+
+label="${HK3_ROLE:-general}"
+[[ -n "${HK3_AGENT_NAME:-}" ]] && label="${HK3_AGENT_NAME} · ${label}"
+printf '\033[1m%s\033[0m' "$label"
+
+if [[ -n "${HK3_STATUSLINE_INNER:-}" ]]; then
+  inner="$(printf '%s' "$input" | bash -c "$HK3_STATUSLINE_INNER" 2>/dev/null || true)"
+  [[ -n "$inner" ]] && printf ' │ %s' "$inner"
+fi
+printf '\n'

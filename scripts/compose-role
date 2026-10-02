@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # compose-role — build a role's Claude launch artifacts from YAML config.
 #
-# Usage: scripts/compose-role <role> [<out-dir>]
+# Usage: scripts/compose-role [--overlay <file>]... <role> [<out-dir>]
 #
-# Merges config/base.yaml with config/roles/<role>.yaml (maps merge deeply,
-# role wins; lists concatenate, duplicates removed) and writes to
-# <out-dir> (default build/roles/<role>):
+# Merges config/base.yaml, config/roles/<role>.yaml, then each overlay (e.g. a
+# project's .harmonik-v3/config.yaml), in that order: maps merge deeply, later
+# wins; lists concatenate, duplicates removed. A null value deletes the key.
+# Skills named in `skills_remove` are dropped. settings.statusLine defaults to
+# scripts/statusline (set it, or null it, to change that). Writes to <out-dir> (default
+# build/roles/<role>):
 #
 #   role.yaml                  the merged config, for inspection
 #   settings.json              .settings, for `claude --settings`
@@ -22,8 +25,15 @@ SKILLS_DIR="$ROOT/skills"
 
 die() { echo "compose-role: $*" >&2; exit 1; }
 
+usage="usage: compose-role [--overlay <file>]... <role> [<out-dir>]"
+overlays=()
+while [[ "${1:-}" == --overlay ]]; do
+  [[ $# -ge 2 ]] || die "$usage"
+  [[ -f "$2" ]] || die "overlay not found: $2"
+  overlays+=("$2"); shift 2
+done
 role="${1:-}"
-[[ -n "$role" ]] || die "usage: compose-role <role> [<out-dir>]"
+[[ -n "$role" ]] || die "$usage"
 role_file="$ROLES_DIR/$role.yaml"
 [[ -f "$role_file" ]] || die "unknown role '$role' (no $role_file)"
 out="${2:-$ROOT/build/roles/$role}"
@@ -32,11 +42,14 @@ for tool in yq jq; do command -v "$tool" >/dev/null || die "$tool not found on P
 
 merged="$(yq eval-all '
   . as $doc ireduce ({}; . *+ $doc)
-  | .skills = ((.skills // []) | unique)
+  | .skills = ((.skills // []) - (.skills_remove // []) | unique)
+  | del(.skills_remove)
   | .settings = (.settings // {})
+  | .settings.statusLine = (.settings.statusLine // {"type": "command", "command": "'"$ROOT/scripts/statusline"'"})
+  | del(.. | select(. == null))
   | .role = "'"$role"'"
   | ... comments = ""
-' "$BASE" "$role_file")"
+' "$BASE" "$role_file" ${overlays[@]+"${overlays[@]}"})"
 
 # Every listed skill must exist in the library.
 missing=()

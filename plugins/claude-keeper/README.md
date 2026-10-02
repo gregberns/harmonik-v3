@@ -10,19 +10,16 @@ Requires Claude Code **2.1.280**, the version tested here. Function hooks are
 early access. Use an interactive terminal; native compaction rejects `-p`
 and SDK sessions on this version.
 
-From the repo root:
+From inside a project:
 
 ```sh
-./keeper new agent claude
-./keeper resume agent claude <session-id>   # omit the id for the picker
+hk3 new agent claude --name alpha
+hk3 resume agent claude <session-id>   # omit the id for the picker
 ```
 
-`keeper` loads settings (shell env > `.env` > defaults in `./keeper`), sets
-`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` and `KEEPER_ENABLED=1`, and runs
-`claude --plugin-dir plugins/claude-keeper` from the repo root, adding
-`--dangerously-skip-permissions` (`KEEPER_CLAUDE_SKIP_PERMISSIONS`, default 1)
-and `--remote-control` (`KEEPER_CLAUDE_REMOTE_CONTROL`, default 0). Extra
-claude args go after `--`.
+`hk3` (`harmonik-v3` at the repo root) loads settings (see the top-level
+README), sets `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` and `KEEPER_ENABLED=1`, and
+runs `claude --plugin-dir plugins/claude-keeper` from the project's git root.
 
 The plugin is never installed: `--plugin-dir` loads it for that launch only.
 It is also inert unless `KEEPER_ENABLED=1`, so it does nothing if loaded
@@ -59,6 +56,10 @@ behavior defaults:
 | `startupKind` | `"prompt"` or `"command"`. |
 | `startupPrompt` | Startup text, or slash command such as `/session-resume task one`. Commands are Claude commands, not shell commands. |
 | `clearMode` | Use `/clear` instead of built-in compaction, default false. |
+
+`KEEPER_HANDOFF_PROMPT`, `KEEPER_STARTUP_KIND` and `KEEPER_STARTUP_PROMPT`
+override the prompts per project; `{name}` and `{role}` are filled from
+`HK3_AGENT_NAME` and `HK3_ROLE`.
 
 Two environment overrides make quick tests easy:
 

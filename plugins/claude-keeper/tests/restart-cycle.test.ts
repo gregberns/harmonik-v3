@@ -164,3 +164,17 @@ test("inert unless launched by keeper (KEEPER_ENABLED)", async () => {
     expect(h.logs).toEqual([]);
   }
 });
+
+test("env prompt overrides fill {name} and {role}", async () => {
+  const h = harness({ env: {
+    KEEPER_HANDOFF_PROMPT: "Run /session-handoff {name} as {role}.",
+    KEEPER_STARTUP_KIND: "command",
+    KEEPER_STARTUP_PROMPT: "/session-resume {name}",
+    HK3_AGENT_NAME: "fred",
+    HK3_ROLE: "builder",
+  } });
+  const result = await h.fire("classic.PostToolUse");
+  expect(result.additionalContext[1].startsWith("Run /session-handoff fred as builder.")).toBe(true);
+  await h.finish();
+  expect(h.calls[1]).toEqual(["command", { command: "session-resume", args: "fred" }]);
+});

@@ -81,6 +81,12 @@ export function parseBoolOr(raw, fallback) {
   return raw === "1" || raw === "true";
 }
 
+// Replace {name} and {role} (from HK3_AGENT_NAME / HK3_ROLE) in a
+// configured prompt.
+export function fillTemplate(text, vars) {
+  return text.replace(/\{(name|role)\}/g, (_, key) => vars[key] || "");
+}
+
 export function isSubagentEvent(e) {
   // BaseHookInput.agent_id is present on any classic hook fired from inside
   // a subagent; agent_type alone is not sufficient (it also appears on the
@@ -124,16 +130,27 @@ export async function resolveConfig($, state) {
   // passes a Promise object through instead of a string, so every override
   // is ignored without an error).
   state.configCache = (async () => {
-    // Set by ./keeper. Without it the plugin is inert, so loading it
+    // Set by hk3 (harmonik-v3). Without it the plugin is inert, so loading it
     // anywhere other than a keeper-launched session does nothing.
     const enabled = await $.env.get("KEEPER_ENABLED");
     const tokensOverride = await $.env.get("KEEPER_RESTART_TOKEN_COUNT");
     const clearModeOverride = await $.env.get("KEEPER_RESTART_CLEAR_MODE");
+    // Per-project prompt overrides, usually set in <project>/.harmonik-v3/config.env.
+    const handoffPrompt = await $.env.get("KEEPER_HANDOFF_PROMPT");
+    const startupPrompt = await $.env.get("KEEPER_STARTUP_PROMPT");
+    const startupKind = await $.env.get("KEEPER_STARTUP_KIND");
+    const vars = {
+      name: await $.env.get("HK3_AGENT_NAME"),
+      role: await $.env.get("HK3_ROLE"),
+    };
     return {
       ...CONFIG,
       enabled: parseBoolOr(enabled, false),
       restartAtTokens: parseIntOr(tokensOverride, CONFIG.restartAtTokens),
       clearMode: parseBoolOr(clearModeOverride, CONFIG.clearMode),
+      handoffPrompt: fillTemplate(handoffPrompt || CONFIG.handoffPrompt, vars),
+      startupPrompt: fillTemplate(startupPrompt || CONFIG.startupPrompt, vars),
+      startupKind: startupKind === "command" || startupKind === "prompt" ? startupKind : CONFIG.startupKind,
     };
   })();
   return state.configCache;

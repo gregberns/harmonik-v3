@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# harmonik-v3 (alias hk3) — launch and manage agent sessions in a project.
+#
+# Usage:
+#   hk3 init [-- <extra claude args>]
+#   hk3 new agent claude [--role <role>] [--name <name>] [-- <extra claude args>]
+#   hk3 resume agent claude [<session-id>] [--role <role>] [--name <name>] [-- <extra claude args>]
+#   hk3 build roles
+#   hk3 build role <role>
+#   hk3 list roles
+#   hk3 config
+#
+# Sessions run in the project: the git root of the current directory (or
+# $HK3_PROJECT_DIR). Project config lives in <project>/.harmonik-v3/.
+#
+# Configuration precedence: shell environment > <project>/.harmonik-v3/config.env
+# > <harmonik-v3 repo>/.env > defaults below.
+#
+# HK3_* settings belong to the launcher; KEEPER_* settings belong to keeper,
+# the claude-keeper plugin that hands off and restarts at a token threshold.
+set -euo pipefail
+
+# Resolve symlinks so the script works when linked onto PATH (e.g. as hk3).
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do
+  link="$(readlink "$self")"
+  [[ "$link" == /* ]] || link="$(dirname "$self")/$link"
+  self="$link"
+done
+ROOT="$(cd "$(dirname "$self")" && pwd)"
+unset self link
+PLUGIN_DIR="$ROOT/plugins/claude-keeper"
+ROLES_DIR="$ROOT/config/roles"
+COMPOSE_ROLE="$ROOT/scripts/compose-role"
+STATUSLINE="$ROOT/scripts/statusline"
+INIT_PROMPT="$ROOT/setup/init-prompt.md"
+
+PROJECT_DIR="${HK3_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+PROJECT_CONF="$PROJECT_DIR/.harmonik-v3"
+
+# --- Defaults (override in .env or config.env) ------------------------------
+# Role used when --role is not given.
+: "${HK3_DEFAULT_ROLE:=general}"
+# 1 = pass --dangerously-skip-permissions to claude.
+: "${HK3_DEFAULT_CLAUDE_SKIP_PERMISSIONS:=1}"
+# 1 = pass --remote-control to claude.
+: "${HK3_DEFAULT_CLAUDE_REMOTE_CONTROL:=0}"
+# Context tokens at which keeper runs its handoff/restart cycle.
+: "${KEEPER_DEFAULT_RESTART_TOKEN_COUNT:=200000}"
+# 1 = /clear instead of native compaction.
+: "${KEEPER_DEFAULT_RESTART_CLEAR_MODE:=0}"
+
+usage() {
+  cat <<EOF
+Usage: hk3 <command>
+
+Commands:
+  init [-- args...]
+      Start a Claude session that sets up .harmonik-v3/ for this project.
+  new agent claude [--role <role>] [--name <name>] [-- args...]
+      Start a new Claude session.
+  resume agent claude [<session-id>] [--role <role>] [--name <name>] [-- args...]
+      Resume a Claude session (no id: open the picker).
+  build roles | build role <role>
+      Compose role config into <project>/.harmonik-v3/build/roles/<role>/.
+  list roles
+      List the roles defined in config/roles/.
+  config
+      Print the resolved configuration for this project.
+
+Project: $PROJECT_DIR
+Sessions run in the project with keeper (the claude-keeper plugin) loaded for
+that launch only. --role (or HK3_ROLE; default $HK3_DEFAULT_ROLE) selects the
+role's settings and skills. --name (or HK3_AGENT_NAME) names the agent, e.g.
+alpha, bravo, charlie; it shows in the status line and the session name and
+fills {name} in keeper's prompts. Args after -- are passed through to claude.
+Configuration: shell env > $PROJECT_CONF/config.env > $ROOT/.env
+EOF
+}
+
+die() { echo "hk3: $*" >&2; exit 1; }
+
+# Precedence: shell environment > project config.env > repo .env > defaults.
+load_env() {
+  local name names=() values=()
+  for name in $(compgen -e | grep -E '^(HK3|KEEPER)_' || true); do
+    names+=("$name"); values+=("${!name}")
+  done
+  local env_file
+  for env_file in "$ROOT/.env" "$PROJECT_CONF/config.env"; do
+    [[ -f "$env_file" ]] || continue
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  done
+  local i
+  for i in "${!names[@]}"; do export "${names[$i]}=${values[$i]}"; done
+  : "${HK3_ROLE:=$HK3_DEFAULT_ROLE}"
+  : "${HK3_CLAUDE_SKIP_PERMISSIONS:=$HK3_DEFAULT_CLAUDE_SKIP_PERMISSIONS}"
+  : "${HK3_CLAUDE_REMOTE_CONTROL:=$HK3_DEFAULT_CLAUDE_REMOTE_CONTROL}"
+  : "${KEEPER_RESTART_TOKEN_COUNT:=$KEEPER_DEFAULT_RESTART_TOKEN_COUNT}"
+  : "${KEEPER_RESTART_CLEAR_MODE:=$KEEPER_DEFAULT_RESTART_CLEAR_MODE}"
+  export HK3_ROLE KEEPER_RESTART_TOKEN_COUNT KEEPER_RESTART_CLEAR_MODE
+}
+
+# Keeper prompt overrides; {name} needs an agent name.
+PROMPT_VARS=(KEEPER_HANDOFF_PROMPT KEEPER_STARTUP_PROMPT)
+
+list_roles() {
+  local f
+  for f in "$ROLES_DIR"/*.yaml; do
+    [[ -e "$f" ]] && basename "$f" .yaml
+  done
+}
+
+# build_role <role>: compose the role with the project overlay; prints its
+# build dir.
+build_role() {
+  local overlay=()
+  [[ -f "$PROJECT_CONF/config.yaml" ]] && overlay=(--overlay "$PROJECT_CONF/config.yaml")
+  "$COMPOSE_ROLE" ${overlay[@]+"${overlay[@]}"} "$1" "$PROJECT_CONF/build/roles/$1"
+}
+
+# base_flags: claude flags every launch gets, into the array `flags`.
+base_flags() {
+  [[ "$HK3_CLAUDE_SKIP_PERMISSIONS" == 1 ]] && flags+=(--dangerously-skip-permissions)
+  [[ "$HK3_CLAUDE_REMOTE_CONTROL" == 1 ]] && flags+=(--remote-control)
+  return 0
+}
+
+# find_statusline: the status line command Claude would otherwise use
+# (project local > project > user settings), so ours can show it after the
+# agent label. Empty if none.
+find_statusline() {
+  local f cmd
+  for f in "$PROJECT_DIR/.claude/settings.local.json" "$PROJECT_DIR/.claude/settings.json" "$HOME/.claude/settings.json"; do
+    [[ -f "$f" ]] || continue
+    cmd="$(jq -r '.statusLine.command // empty' "$f" 2>/dev/null || true)"
+    [[ -n "$cmd" && "$cmd" != *"$STATUSLINE"* ]] && { echo "$cmd"; return; }
+  done
+  return 0
+}
+
+# run_claude <claude args...>: launch claude with keeper, flags, and the
+# role's settings and skills.
+run_claude() {
+  command -v claude >/dev/null || die "claude not found on PATH"
+  [[ -d "$PLUGIN_DIR" ]] || die "plugin not found at $PLUGIN_DIR"
+
+  local role_dir
+  role_dir="$(build_role "$HK3_ROLE")" || exit 1
+  local flags=(--plugin-dir "$PLUGIN_DIR" --settings "$role_dir/settings.json" --plugin-dir "$role_dir/plugin")
+  [[ -n "${HK3_AGENT_NAME:-}" ]] && flags+=(--name "$HK3_AGENT_NAME")
+  base_flags
+
+  local var
+  for var in "${PROMPT_VARS[@]}"; do
+    [[ "${!var:-}" == *"{name}"* && -z "${HK3_AGENT_NAME:-}" ]] &&
+      die "$var uses {name}; pass --name <name> or set HK3_AGENT_NAME"
+  done
+
+  # Read by scripts/statusline.
+  : "${HK3_STATUSLINE_INNER:=$(find_statusline)}"
+  export HK3_STATUSLINE_INNER
+  # Function hooks are early access; keeper does nothing without this.
+  export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
+  # Keeper stays inert unless launched from here.
+  export KEEPER_ENABLED=1
+
+  echo "hk3: project $PROJECT_DIR" >&2
+  echo "hk3: agent ${HK3_AGENT_NAME:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
+  echo "hk3: claude ${flags[*]} $*" >&2
+  # Sessions are stored per directory; always launch from the project root so
+  # resume finds them.
+  cd "$PROJECT_DIR"
+  exec claude "${flags[@]}" "$@"
+}
+
+# agent_claude <new|resume> [args...]: parse options, then launch.
+agent_claude() {
+  local verb="$1"; shift
+  local session_id="" passthrough=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --role) [[ $# -ge 2 ]] || die "--role needs a value"; HK3_ROLE="$2"; shift 2 ;;
+      --role=*) HK3_ROLE="${1#--role=}"; shift ;;
+      --name) [[ $# -ge 2 ]] || die "--name needs a value"; export HK3_AGENT_NAME="$2"; shift 2 ;;
+      --name=*) export HK3_AGENT_NAME="${1#--name=}"; shift ;;
+      --) shift; passthrough=("$@"); break ;;
+      -*) die "unknown option: $1 (pass claude flags after --)" ;;
+      *)
+        [[ "$verb" == resume && -z "$session_id" ]] || die "unexpected argument: $1"
+        session_id="$1"; shift ;;
+    esac
+  done
+  [[ -n "$HK3_ROLE" ]] || die "--role needs a value"
+
+  local args=()
+  if [[ "$verb" == resume ]]; then
+    args+=(--resume)
+    [[ -n "$session_id" ]] && args+=("$session_id")
+  fi
+  run_claude ${args[@]+"${args[@]}"} ${passthrough[@]+"${passthrough[@]}"}
+}
+
+cmd_agent() {
+  local verb="$1" what="${2:-}" runtime="${3:-}"
+  [[ "$what" == agent ]] || { usage >&2; exit 1; }
+  shift 3 2>/dev/null || shift $#
+  load_env
+  case "$runtime" in
+    claude) agent_claude "$verb" "$@" ;;
+    "") die "missing agent runtime (try: hk3 $verb agent claude)" ;;
+    *) die "unknown agent runtime: $runtime" ;;
+  esac
+}
+
+# cmd_init: launch claude in the project with setup instructions; no keeper.
+cmd_init() {
+  [[ "${1:-}" == -- ]] && shift
+  load_env
+  command -v claude >/dev/null || die "claude not found on PATH"
+  [[ -f "$INIT_PROMPT" ]] || die "missing $INIT_PROMPT"
+  local prompt
+  prompt="$(sed -e "s|{{HK3_ROOT}}|$ROOT|g" -e "s|{{PROJECT_DIR}}|$PROJECT_DIR|g" "$INIT_PROMPT")"
+  local flags=(--append-system-prompt "$prompt")
+  base_flags
+  echo "hk3: init for project $PROJECT_DIR" >&2
+  cd "$PROJECT_DIR"
+  exec claude "${flags[@]}" "$@" "Set up harmonik-v3 for this project."
+}
+
+cmd_config() {
+  load_env
+  echo "harmonik-v3 root: $ROOT"
+  echo "project:          $PROJECT_DIR"
+  local f
+  for f in "$ROOT/.env" "$PROJECT_CONF/config.env" "$PROJECT_CONF/config.yaml"; do
+    if [[ -f "$f" ]]; then echo "config file:      $f"; else echo "config file:      $f (absent)"; fi
+  done
+  echo "inner status line: $(find_statusline)"
+  echo "resolved:"
+  compgen -e | grep -E '^(HK3|KEEPER)_' | grep -vE '^(HK3|KEEPER)_DEFAULT_' | sort | while read -r name; do
+    printf '  %s=%q\n' "$name" "${!name}"
+  done
+}
+
+cmd_build() {
+  case "${1:-}" in
+    roles)
+      local role
+      for role in $(list_roles); do build_role "$role"; done ;;
+    role)
+      [[ -n "${2:-}" ]] || die "usage: hk3 build role <role>"
+      build_role "$2" ;;
+    *) die "usage: hk3 build roles | hk3 build role <role>" ;;
+  esac
+}
+
+cmd_list() {
+  case "${1:-}" in
+    roles) list_roles ;;
+    *) die "usage: hk3 list roles" ;;
+  esac
+}
+
+case "${1:-}" in
+  init) shift; cmd_init "$@" ;;
+  config) cmd_config ;;
+  new|resume) cmd_agent "$@" ;;
+  build) shift; cmd_build "$@" ;;
+  list) shift; cmd_list "$@" ;;
+  -h|--help|help|"") usage ;;
+  *) usage >&2; exit 1 ;;
+esac

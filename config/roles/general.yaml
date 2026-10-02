@@ -1,0 +1,2 @@
+# Default role when none is given: the base config alone, no extra skills.
+description: "General-purpose agent with the base config only."

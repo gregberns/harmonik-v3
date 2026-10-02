@@ -7,3 +7,6 @@ build/
 # Session state written at runtime
 .harmonik/
 HANDOFF.md
+
+# Project config/build when hk3 runs against this repo itself
+.harmonik-v3/
