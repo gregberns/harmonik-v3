@@ -59,11 +59,14 @@ to the system prompt and without keeper or a role. That session writes
   settings to the keeper plugin. Keeper reads its settings through `$.env.get`,
   which needs literal names, so the names are part of the plugin's validated
   manifest.
-- **hk3 sessions are invisible to the older harmonik.** Its global hooks in
-  `~/.claude/settings.json` name the agent from `HARMONIK_AGENT`, else the
-  tmux session name. Its `PreCompact` hook blocks compaction for agents it
-  manages, and old lane names such as `alpha` are still marked managed. hk3
-  exports `HARMONIK_AGENT=<prefix>-<name>` (`hk3-<name>` when the project has
-  no prefix), so those hooks treat the session as unmanaged. Remove this once the older harmonik is retired.
+- **hk3 sessions stay separate from the older harmonik.** Its global
+  `SessionStart` and `Stop` hooks in `~/.claude/settings.json` name the agent
+  from `HARMONIK_AGENT`, else the tmux session name, and write per-agent
+  markers (`.harmonik/keeper/<agent>.sid`, `.idle`) that its watcher reads.
+  hk3 exports `HARMONIK_AGENT=<prefix>-<name>` (`hk3-<name>` when the project
+  has no prefix), so an hk3 `alpha` never overwrites an older `alpha`'s
+  markers. Its `PreCompact` hook, which blocked compaction for managed agents,
+  was removed from the global settings on 2026-10-02. Remove this export once
+  the older harmonik is retired.
 - **Keeper is inert unless hk3 launched it** (`KEEPER_ENABLED=1`), so loading
   the plugin any other way does nothing.

@@ -176,10 +176,10 @@ run_claude() {
   export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
   # Keeper stays inert unless launched from here.
   export KEEPER_ENABLED=1
-  # The older harmonik's global hooks (PreCompact, SessionStart, Stop) name
-  # the agent from HARMONIK_AGENT, else the tmux session. A name they manage
-  # (e.g. alpha) lets their PreCompact hook block keeper's compaction; a
-  # prefixed name keeps hk3 sessions unmanaged to them.
+  # The older harmonik's global hooks (SessionStart, Stop) name the agent
+  # from HARMONIK_AGENT, else the tmux session, and write per-agent markers
+  # its watcher reads. A prefixed name keeps an hk3 agent from overwriting
+  # the markers of an older agent with the same name (e.g. alpha.sid).
   export HARMONIK_AGENT="${HK3_PROJECT_PREFIX:-hk3}-${HK3_AGENT_NAME:-unnamed}"
 
   echo "hk3: project $PROJECT_DIR" >&2

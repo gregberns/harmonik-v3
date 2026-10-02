@@ -53,9 +53,8 @@ before you decide anything.
   instead of reading `HANDOFF-alpha.md`.
 
   Prefer compaction (the default). Choose clear mode only when the project
-  needs the conversation discarded, not to avoid other tools' hooks: hk3 sets
-  `HARMONIK_AGENT=hk3-<name>`, so the older harmonik's global PreCompact hook
-  treats hk3 sessions as unmanaged and does not block compaction.
+  needs the conversation discarded. If a `PreCompact` hook would block
+  compaction, report it to the user rather than switching to clear mode.
 - `config.yaml`: overlay merged last over the role config. Maps merge deeply
   and the overlay wins; lists concatenate. A `null` value deletes a key, for
   example a `settings.skillOverrides` entry from the base. `skills_remove: [x]`
