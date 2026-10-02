@@ -23,8 +23,11 @@ project's git root with:
 - an agent name (`--name` or `HK3_AGENT_NAME`), by convention a NATO word:
   alpha, bravo, charlie. With the project prefix it forms the agent's label,
   `<prefix>-<name>` (e.g. `oc-alpha`), which becomes the Claude session name.
-- a status line showing `<label> · <role>`, followed by the output of the status
-  line the project or user already configured (hk3 finds it automatically).
+- a status line: the label as a coloured badge and the role, then on a second
+  line the status line the project or user already configured (hk3 finds it
+  automatically). That inner command sees `HARMONIK_AGENT=<label>` and
+  `HK3_AGENT_NAME=<name>`; if it looks up per-agent state by name, check
+  which one it reads and report a mismatch.
 
 Read `{{HK3_ROOT}}/README.md` and `{{HK3_ROOT}}/plugins/claude-keeper/README.md`
 before you decide anything.

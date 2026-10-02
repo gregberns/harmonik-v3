@@ -53,8 +53,9 @@ to the system prompt and without keeper or a role. That session writes
   base config with no extra skills. One code path, and the status line always
   has a role to show. What `general` should contain is still open.
 - **The status line chains.** `--settings` replaces whatever status line the
-  project or user had, so `scripts/statusline` prints the agent label and then
-  runs the replaced command (found at launch) with the same input.
+  project or user had, so `scripts/statusline` prints the agent badge on the
+  first line and the replaced command's output (found at launch, given the
+  same input) on the second.
 - **Two setting prefixes.** `HK3_*` settings belong to the launcher, `KEEPER_*`
   settings to the keeper plugin. Keeper reads its settings through `$.env.get`,
   which needs literal names, so the names are part of the plugin's validated

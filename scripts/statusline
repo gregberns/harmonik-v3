@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
-# statusline — Claude status line for hk3 sessions: "<label> · <role>", then
-# the output of the status line the project or user already had
-# ($HK3_STATUSLINE_INNER, found by hk3 at launch), fed the same JSON on stdin.
+# statusline — Claude status line for hk3 sessions.
+#
+# Line 1: the agent's label (HK3_AGENT_ID, e.g. oc-alpha) as a coloured badge,
+#         then the role. The colour is fixed per label, so agents differ.
+# Line 2: the status line the project or user already had
+#         ($HK3_STATUSLINE_INNER, found by hk3 at launch), fed the same JSON.
 input="$(cat)"
 
-label="${HK3_ROLE:-general}"
-# HK3_AGENT_ID is the agent's label, e.g. oc-alpha.
-[[ -n "${HK3_AGENT_ID:-}" ]] && label="${HK3_AGENT_ID} · ${label}"
-printf '\033[1m%s\033[0m' "$label"
+label="${HK3_AGENT_ID:-}"
+role="${HK3_ROLE:-general}"
+
+# 256-colour backgrounds that take black bold text.
+palette=(39 208 41 170 220 203 45 141 114 214 81 177)
+if [[ -n "$label" ]]; then
+  sum="$(printf '%s' "$label" | cksum | cut -d' ' -f1)"
+  bg="${palette[sum % ${#palette[@]}]}"
+  printf '\033[1;38;5;16;48;5;%sm ▶ %s \033[0m \033[2m%s\033[0m\n' "$bg" "$label" "$role"
+else
+  printf '\033[2m%s\033[0m\n' "$role"
+fi
 
 if [[ -n "${HK3_STATUSLINE_INNER:-}" ]]; then
   inner="$(printf '%s' "$input" | bash -c "$HK3_STATUSLINE_INNER" 2>/dev/null || true)"
-  [[ -n "$inner" ]] && printf ' │ %s' "$inner"
+  [[ -n "$inner" ]] && printf '%s\n' "$inner"
 fi
-printf '\n'
+exit 0

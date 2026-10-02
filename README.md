@@ -17,7 +17,7 @@ config/
   roles/<role>.yaml     per-role config, merged over base.yaml
 skills/<name>/SKILL.md  skill library; roles pick from it
 scripts/compose-role    YAML config -> <project>/.harmonik-v3/build/roles/<role>/
-scripts/statusline      status line: "<label> · <role>" + the existing one
+scripts/statusline      status line: agent badge + role, then the existing one
 setup/init-prompt.md    instructions for the `hk3 init` setup session
 plugins/claude-keeper/  keeper: handoff + restart at a token threshold
 ```
@@ -53,8 +53,10 @@ The project is the git root of the current directory (override with
   shows in the status line.
 - **Role**: `--role` or `HK3_ROLE`, default `general` (the base config, no
   extra skills).
-- **Status line**: `<label> · <role>`, followed by the status line the project
-  or user already had.
+- **Status line**: line 1 is the label as a coloured badge (one colour per
+  agent) and the role; line 2 is the status line the project or user already
+  had. Project scripts that need the bare name should read `HK3_AGENT_NAME`;
+  `HARMONIK_AGENT` carries the prefix.
 
 ## Project config
 
