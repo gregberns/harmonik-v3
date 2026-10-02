@@ -1,73 +1,80 @@
 # harmonik-v3
 
-Tooling for launching and managing Claude agent sessions.
+Run long-lived Claude Code agents in your projects without babysitting them.
 
-Its command is `harmonik-v3`, aliased `hk3`. Keeper (`plugins/claude-keeper`)
-is the part that hands off and restarts a session at a token threshold.
+`hk3` starts Claude Code in a project as a named agent (`oc-alpha`,
+`oc-bravo`, ...) with a role that decides its skills and settings. When the
+agent's context fills up, **keeper** has it write a handoff note, compacts
+the session, and tells it to resume from that note, so it carries on without
+you. Each agent's name shows as a coloured badge in Claude's status bar, so
+you can tell several terminals apart at a glance.
 
-## Layout
+Nothing is installed into your project's `.claude/` or your global Claude
+config. Everything loads per launch, and each project's settings live in its
+own `.harmonik-v3/` folder.
 
-```
-harmonik-v3             CLI (hk3): launch/resume agents, build role config
-AGENTS.md               agent context (CLAUDE.md is a symlink to it)
-docs/                   documentation; index in docs/README.md
-.env                    local settings (not committed)
-config/
-  base.yaml             config shared by every role
-  roles/<role>.yaml     per-role config, merged over base.yaml
-skills/<name>/SKILL.md  skill library; roles pick from it
-scripts/compose-role    YAML config -> <project>/.harmonik-v3/build/roles/<role>/
-scripts/statusline      status line: agent badge + role, then the existing one
-setup/init-prompt.md    instructions for the `hk3 init` setup session
-plugins/claude-keeper/  keeper: handoff + restart at a token threshold
-```
+## Getting started
 
-Requires `claude`, `yq` (mikefarah v4) and `jq`. Scripts are bash only.
-
-## Usage
-
-Put it on your PATH once, then run it from inside any project:
+**1. Install the prerequisites:** Claude Code 2.1.280 or later, plus `yq`
+(mikefarah v4) and `jq`.
 
 ```sh
-ln -s "$PWD/harmonik-v3" ~/.local/bin/hk3
-
-cd ~/dev/some-project
-hk3 init                        # Claude sets up .harmonik-v3/, then prints the launch command
-hk3 new agent claude --name alpha [--role planner]
-hk3 resume agent claude <session-id> --name alpha --role builder
-hk3 config                      # show resolved settings for this project
-hk3 list roles
-hk3 build roles                 # compose every role (launch does this too)
+brew install yq jq
 ```
 
-The project is the git root of the current directory (override with
-`HK3_PROJECT_DIR`). Claude runs from there. Pass extra claude flags after
-`--`. See `hk3 --help`.
+**2. Put `hk3` on your PATH:**
 
-### Agents
+```sh
+git clone git@github.com:gregberns/harmonik-v3.git ~/dev/harmonik-v3
+ln -s ~/dev/harmonik-v3/harmonik-v3 ~/.local/bin/hk3   # any directory on your PATH
+```
 
-- **Name**: `--name` or `HK3_AGENT_NAME`. By convention a NATO word (alpha,
-  bravo, charlie, ...).
-- **Label**: the project prefix plus the name, e.g. `oc-alpha` when the
-  project sets `HK3_PROJECT_PREFIX=oc`. It is the Claude session name and
-  shows in the status line.
-- **Role**: `--role` or `HK3_ROLE`, default `general` (the base config, no
-  extra skills).
-- **Status line**: line 1 is the label as a coloured badge (one colour per
-  agent) and the role; line 2 is the status line the project or user already
-  had. Project scripts that need the bare name should read `HK3_AGENT_NAME`;
-  `HARMONIK_AGENT` carries the prefix.
+**3. Set up your project.** From anywhere inside the project:
 
-## Project config
+```sh
+cd ~/dev/my-project
+hk3 init
+```
 
-Each project keeps its config in `<project>/.harmonik-v3/` (`config.env`,
-`config.yaml`, `build/`). `hk3 init` writes it for you. Every setting and the
-merge rules are in [docs/configuration.md](docs/configuration.md).
+This opens a Claude session that reads your project, works out how it
+handles handoffs and status lines, asks you for a short project prefix (such
+as `oc`), and writes `.harmonik-v3/`. It finishes with the exact command to
+start your first agent.
+
+**4. Start an agent:**
+
+```sh
+hk3 new agent claude --name alpha
+```
+
+The status bar shows `▶ oc-alpha  general`. Start a second agent in another
+terminal with `--name bravo`, and so on. By convention, names are NATO
+words.
+
+## Everyday use
+
+```sh
+hk3 new agent claude --name alpha --role builder   # new agent with a role
+hk3 resume agent claude --name alpha               # pick a past session to resume
+hk3 resume agent claude <session-id> --name alpha  # resume a specific one
+hk3 config                                         # what settings apply here, and from where
+hk3 list roles
+hk3 --help
+```
+
+Put extra Claude flags after `--`, e.g. `hk3 new agent claude --name alpha -- --model opus`.
+
+To try keeper's handoff and restart without filling a real context window,
+lower the threshold for one launch:
+
+```sh
+KEEPER_RESTART_TOKEN_COUNT=500 hk3 new agent claude --name alpha
+```
 
 ## Roles
 
-A role is `config/base.yaml` + `config/roles/<role>.yaml` + the project's
-`.harmonik-v3/config.yaml`; see [docs/configuration.md](docs/configuration.md#roles).
+A role picks the agent's skills and Claude settings. Without `--role` an
+agent is `general`.
 
 | Role | Skills (plus `handoff`) |
 |---|---|
@@ -77,6 +84,13 @@ A role is `config/base.yaml` + `config/roles/<role>.yaml` + the project's
 | builder | incremental-build, commit-hygiene |
 | tester | test-plan, bug-report |
 
-## Docs
+A project can adjust any role in `.harmonik-v3/config.yaml`.
 
-See [docs/README.md](docs/README.md). Agents start at [AGENTS.md](AGENTS.md).
+## Learn more
+
+- [docs/configuration.md](docs/configuration.md): every setting, project config files, how roles are built
+- [docs/architecture.md](docs/architecture.md): what a launch does, the repo layout, design decisions
+- [docs/testing.md](docs/testing.md): how to verify changes
+- [plugins/claude-keeper/README.md](plugins/claude-keeper/README.md): how keeper's handoff and restart work
+
+Working on harmonik-v3 with an agent? It starts at [AGENTS.md](AGENTS.md).

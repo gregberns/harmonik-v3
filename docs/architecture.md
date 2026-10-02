@@ -3,17 +3,20 @@
 harmonik-v3 launches Claude Code agent sessions inside other projects. The
 command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 
-## Components
+## Repo layout
 
 | Path | Role |
 |---|---|
 | `harmonik-v3` | The CLI. Resolves the project, loads config, composes the role, runs `claude`. |
 | `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin. |
-| `scripts/statusline` | Claude status line: `<name> · <role>`, then the project's own status line. |
+| `scripts/statusline` | Claude status line: agent badge and role, then the project's own status line. |
 | `config/base.yaml`, `config/roles/*.yaml` | Role definitions. |
 | `skills/` | Skill library. Roles pick skills from it by name. |
 | `plugins/claude-keeper/` | Keeper: hands off and restarts a session at a token threshold. |
 | `setup/init-prompt.md` | Instructions given to Claude by `hk3 init`. |
+| `docs/` | Documentation; index in `docs/README.md`. |
+| `AGENTS.md` | Context for agents working on this repo (`CLAUDE.md` links to it). |
+| `.env` | Machine-local settings, not committed. |
 
 ## What a launch does
 
