@@ -41,6 +41,17 @@ before you decide anything.
   - `KEEPER_STARTUP_PROMPT`: the text or `/command args` sent after the restart.
   Both prompts may use `{name}` (the agent name) and `{role}`. If a prompt
   uses `{name}`, hk3 refuses to launch without a name.
+
+  When the startup command takes the handoff as an argument, pass the
+  handoff file's base name, not the bare agent name: for files named
+  `HANDOFF-<name>.md`, use `KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"`.
+  With only `{name}`, the resumed agent searches for a file called `alpha`
+  instead of reading `HANDOFF-alpha.md`.
+
+  Prefer compaction (the default). Choose clear mode only when the project
+  needs the conversation discarded, not to avoid other tools' hooks: hk3 sets
+  `HARMONIK_AGENT=hk3-<name>`, so the older harmonik's global PreCompact hook
+  treats hk3 sessions as unmanaged and does not block compaction.
 - `config.yaml`: overlay merged last over the role config. Maps merge deeply
   and the overlay wins; lists concatenate. A `null` value deletes a key, for
   example a `settings.skillOverrides` entry from the base. `skills_remove: [x]`
@@ -60,9 +71,10 @@ Omit any file or key whose default is already right. Fewer settings are better.
    contradict the project. If they would, set the prompts and skill overrides
    to use the project's convention instead.
 3. Look for anything that would conflict with keeper or hk3: other context or
-   restart tooling, `PreCompact` or `SessionStart` hooks, an existing
-   `keeper` or `harmonik` command or skill in the project. Report each one; do
-   not remove it.
+   restart tooling, `PreCompact` or `SessionStart` hooks (project and
+   `~/.claude/settings.json`), an existing `keeper` or `harmonik` command or
+   skill in the project. Read each hook script to see when it actually acts
+   before you call it a conflict. Report each one; do not remove it.
 4. Check prerequisites: `claude --version` (keeper was tested on 2.1.280),
    `yq --version` (mikefarah v4), `jq --version`. Check whether `hk3` is on
    PATH (`command -v hk3`). If not, tell the user they can run

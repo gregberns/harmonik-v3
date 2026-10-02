@@ -168,6 +168,11 @@ run_claude() {
   export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
   # Keeper stays inert unless launched from here.
   export KEEPER_ENABLED=1
+  # The older harmonik's global hooks (PreCompact, SessionStart, Stop) name
+  # the agent from HARMONIK_AGENT, else the tmux session. A name they manage
+  # (e.g. alpha) lets their PreCompact hook block keeper's compaction; this
+  # prefix keeps hk3 sessions unmanaged to them.
+  export HARMONIK_AGENT="hk3-${HK3_AGENT_NAME:-unnamed}"
 
   echo "hk3: project $PROJECT_DIR" >&2
   echo "hk3: agent ${HK3_AGENT_NAME:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2

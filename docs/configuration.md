@@ -55,6 +55,34 @@ In the two prompts, `{name}` is replaced by the agent name and `{role}` by the
 role. If a prompt uses `{name}` and the agent has no name, hk3 refuses to
 launch.
 
+When the startup command takes the handoff as an argument, pass the file's
+base name rather than the bare agent name. The argument is free text that the
+resumed agent interprets: given `alpha`, it searches for a file called
+`alpha`; given `HANDOFF-alpha`, it reads `HANDOFF-alpha.md`. For a project
+with one handoff file per agent:
+
+```sh
+KEEPER_HANDOFF_PROMPT="Your context is nearly full. Run the session-handoff skill for lane {name} and write HANDOFF-{name}.md at the repository root."
+KEEPER_STARTUP_KIND=command
+KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
+```
+
+### Compaction or clear
+
+Keeper first has the agent write its handoff. It then resets the context in
+one of two ways:
+
+- **Compaction** (default, `KEEPER_RESTART_CLEAR_MODE=0`): Claude's native
+  `/compact`. The conversation is replaced by Claude's own summary, and the
+  startup prompt runs on top of that summary.
+- **Clear** (`KEEPER_RESTART_CLEAR_MODE=1`): runs `/clear`. The conversation
+  is discarded, and the handoff file is the only state carried over. Keeper
+  sends the startup prompt only after `SessionStart` reports `source=clear`.
+
+Both were verified live (see the keeper README). A `PreCompact` hook that
+blocks compaction stops the cycle: keeper logs `compaction skipped` and sends
+no startup prompt.
+
 hk3 sets `KEEPER_ENABLED=1` and `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` itself.
 Other plugin defaults are in the `CONFIG` object in
 `plugins/claude-keeper/hooks/index.js`.

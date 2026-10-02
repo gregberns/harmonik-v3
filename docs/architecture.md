@@ -34,7 +34,7 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 
    It also exports `KEEPER_ENABLED=1`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`,
    `HK3_ROLE`, `HK3_AGENT_NAME` and `HK3_STATUSLINE_INNER` for keeper and the
-   status line.
+   status line, and `HARMONIK_AGENT=hk3-<name>` (see below).
 
 `hk3 init` runs `claude` in the project with `setup/init-prompt.md` appended
 to the system prompt and without keeper or a role. That session writes
@@ -58,5 +58,11 @@ to the system prompt and without keeper or a role. That session writes
   settings to the keeper plugin. Keeper reads its settings through `$.env.get`,
   which needs literal names, so the names are part of the plugin's validated
   manifest.
+- **hk3 sessions are invisible to the older harmonik.** Its global hooks in
+  `~/.claude/settings.json` name the agent from `HARMONIK_AGENT`, else the
+  tmux session name. Its `PreCompact` hook blocks compaction for agents it
+  manages, and old lane names such as `alpha` are still marked managed. hk3
+  exports `HARMONIK_AGENT=hk3-<name>`, so those hooks treat the session as
+  unmanaged. Remove this once the older harmonik is retired.
 - **Keeper is inert unless hk3 launched it** (`KEEPER_ENABLED=1`), so loading
   the plugin any other way does nothing.
