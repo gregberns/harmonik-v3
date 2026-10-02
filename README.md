@@ -17,7 +17,7 @@ config/
   roles/<role>.yaml     per-role config, merged over base.yaml
 skills/<name>/SKILL.md  skill library; roles pick from it
 scripts/compose-role    YAML config -> <project>/.harmonik-v3/build/roles/<role>/
-scripts/statusline      status line: "<name> · <role>" + the existing one
+scripts/statusline      status line: "<label> · <role>" + the existing one
 setup/init-prompt.md    instructions for the `hk3 init` setup session
 plugins/claude-keeper/  keeper: handoff + restart at a token threshold
 ```
@@ -47,11 +47,13 @@ The project is the git root of the current directory (override with
 ### Agents
 
 - **Name**: `--name` or `HK3_AGENT_NAME`. By convention a NATO word (alpha,
-  bravo, charlie, ...). It becomes the Claude session name and shows in the
-  status line.
+  bravo, charlie, ...).
+- **Label**: the project prefix plus the name, e.g. `oc-alpha` when the
+  project sets `HK3_PROJECT_PREFIX=oc`. It is the Claude session name and
+  shows in the status line.
 - **Role**: `--role` or `HK3_ROLE`, default `general` (the base config, no
   extra skills).
-- **Status line**: `<name> · <role>`, followed by the status line the project
+- **Status line**: `<label> · <role>`, followed by the status line the project
   or user already had.
 
 ## Project config

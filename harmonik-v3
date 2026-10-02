@@ -73,8 +73,9 @@ Project: $PROJECT_DIR
 Sessions run in the project with keeper (the claude-keeper plugin) loaded for
 that launch only. --role (or HK3_ROLE; default $HK3_DEFAULT_ROLE) selects the
 role's settings and skills. --name (or HK3_AGENT_NAME) names the agent, e.g.
-alpha, bravo, charlie; it shows in the status line and the session name and
-fills {name} in keeper's prompts. Args after -- are passed through to claude.
+alpha, bravo, charlie; it fills {name} in keeper's prompts. With
+HK3_PROJECT_PREFIX (e.g. oc) the agent's label is <prefix>-<name> (oc-alpha);
+the label shows in the status line and the session name. Args after -- are passed through to claude.
 Configuration: shell env > $PROJECT_CONF/config.env > $ROOT/.env
 EOF
 }
@@ -152,7 +153,14 @@ run_claude() {
   local role_dir
   role_dir="$(build_role "$HK3_ROLE")" || exit 1
   local flags=(--plugin-dir "$PLUGIN_DIR" --settings "$role_dir/settings.json" --plugin-dir "$role_dir/plugin")
-  [[ -n "${HK3_AGENT_NAME:-}" ]] && flags+=(--name "$HK3_AGENT_NAME")
+  local part
+  for part in HK3_PROJECT_PREFIX HK3_AGENT_NAME; do
+    [[ "${!part:-}" =~ ^[A-Za-z0-9_-]*$ ]] || die "$part may only contain letters, digits, - and _: ${!part}"
+  done
+  # The agent's label: <prefix>-<name>, or whichever part is set.
+  HK3_AGENT_ID="${HK3_PROJECT_PREFIX:-}${HK3_PROJECT_PREFIX:+${HK3_AGENT_NAME:+-}}${HK3_AGENT_NAME:-}"
+  export HK3_AGENT_ID
+  [[ -n "$HK3_AGENT_ID" ]] && flags+=(--name "$HK3_AGENT_ID")
   base_flags
 
   local var
@@ -170,12 +178,12 @@ run_claude() {
   export KEEPER_ENABLED=1
   # The older harmonik's global hooks (PreCompact, SessionStart, Stop) name
   # the agent from HARMONIK_AGENT, else the tmux session. A name they manage
-  # (e.g. alpha) lets their PreCompact hook block keeper's compaction; this
-  # prefix keeps hk3 sessions unmanaged to them.
-  export HARMONIK_AGENT="hk3-${HK3_AGENT_NAME:-unnamed}"
+  # (e.g. alpha) lets their PreCompact hook block keeper's compaction; a
+  # prefixed name keeps hk3 sessions unmanaged to them.
+  export HARMONIK_AGENT="${HK3_PROJECT_PREFIX:-hk3}-${HK3_AGENT_NAME:-unnamed}"
 
   echo "hk3: project $PROJECT_DIR" >&2
-  echo "hk3: agent ${HK3_AGENT_NAME:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
+  echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
   echo "hk3: claude ${flags[*]} $*" >&2
   # Sessions are stored per directory; always launch from the project root so
   # resume finds them.

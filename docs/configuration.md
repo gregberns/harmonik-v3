@@ -30,12 +30,18 @@ around values that contain spaces.
 | Setting | Default | Meaning |
 |---|---|---|
 | `HK3_PROJECT_DIR` | git root of `$PWD` | Project to run in. Shell environment only. |
+| `HK3_PROJECT_PREFIX` | none | Project prefix for agent labels, e.g. `oc`. Set it in `config.env`. |
 | `HK3_AGENT_NAME` | none | Agent name (`--name`). Convention: NATO words, alpha, bravo, charlie. |
 | `HK3_ROLE` | `HK3_DEFAULT_ROLE` | Role (`--role`). |
 | `HK3_DEFAULT_ROLE` | `general` | Role when none is given. |
 | `HK3_CLAUDE_SKIP_PERMISSIONS` | `1` | Pass `--dangerously-skip-permissions`. |
 | `HK3_CLAUDE_REMOTE_CONTROL` | `0` | Pass `--remote-control`. |
 | `HK3_STATUSLINE_INNER` | found at launch | Status line command shown after the agent label. |
+
+An agent's label is `<prefix>-<name>` (`oc-alpha`), or just whichever part is
+set. hk3 exports it as `HK3_AGENT_ID`. The label is the Claude session name and
+appears in the status line. The prefix and name may contain only letters,
+digits, `-` and `_`.
 
 When `HK3_STATUSLINE_INNER` is unset, hk3 uses the first `statusLine.command`
 in the project's `.claude/settings.local.json`, then its
@@ -51,8 +57,8 @@ in the project's `.claude/settings.local.json`, then its
 | `KEEPER_STARTUP_KIND` | `prompt` | `prompt` (plain text) or `command` (slash command). |
 | `KEEPER_STARTUP_PROMPT` | plugin `CONFIG` | Text or `/command args` sent after the restart. |
 
-In the two prompts, `{name}` is replaced by the agent name and `{role}` by the
-role. If a prompt uses `{name}` and the agent has no name, hk3 refuses to
+In the two prompts, `{name}` is replaced by the agent name, without the
+project prefix, and `{role}` by the role. If a prompt uses `{name}` and the agent has no name, hk3 refuses to
 launch.
 
 When the startup command takes the handoff as an argument, pass the file's

@@ -21,8 +21,9 @@ project's git root with:
   settings (`--settings`). Run `{{HK3_ROOT}}/harmonik-v3 list roles` to see
   them. Read the YAML files there to see what each role sets.
 - an agent name (`--name` or `HK3_AGENT_NAME`), by convention a NATO word:
-  alpha, bravo, charlie. It becomes the Claude session name.
-- a status line showing `<name> · <role>`, followed by the output of the status
+  alpha, bravo, charlie. With the project prefix it forms the agent's label,
+  `<prefix>-<name>` (e.g. `oc-alpha`), which becomes the Claude session name.
+- a status line showing `<label> · <role>`, followed by the output of the status
   line the project or user already configured (hk3 finds it automatically).
 
 Read `{{HK3_ROOT}}/README.md` and `{{HK3_ROOT}}/plugins/claude-keeper/README.md`
@@ -32,6 +33,9 @@ before you decide anything.
 
 - `config.env`: shell `KEY=value` lines, sourced by bash. Quote values that
   contain spaces. Keys:
+  - `HK3_PROJECT_PREFIX`: short project prefix for agent labels, e.g. `oc`.
+    Letters, digits, `-` and `_` only. Every project should set one; ask the
+    user for it.
   - `HK3_DEFAULT_ROLE` (default `general`)
   - `HK3_CLAUDE_SKIP_PERMISSIONS` (default 1), `HK3_CLAUDE_REMOTE_CONTROL` (default 0)
   - `KEEPER_RESTART_TOKEN_COUNT` (default 200000)
@@ -39,7 +43,7 @@ before you decide anything.
   - `KEEPER_HANDOFF_PROMPT`: what the agent is told to do at the threshold.
   - `KEEPER_STARTUP_KIND`: `prompt` (plain text) or `command` (a slash command).
   - `KEEPER_STARTUP_PROMPT`: the text or `/command args` sent after the restart.
-  Both prompts may use `{name}` (the agent name) and `{role}`. If a prompt
+  Both prompts may use `{name}` (the agent name, without the prefix) and `{role}`. If a prompt
   uses `{name}`, hk3 refuses to launch without a name.
 
   When the startup command takes the handoff as an argument, pass the
@@ -80,7 +84,8 @@ Omit any file or key whose default is already right. Fewer settings are better.
    PATH (`command -v hk3`). If not, tell the user they can run
    `ln -s {{HK3_ROOT}}/harmonik-v3 ~/.local/bin/hk3` (use a directory on their PATH).
 5. Ask the user only what you cannot decide from the files, in one message:
-   for example the default role, or whether sessions need a name.
+   always the project prefix; otherwise only things like the default role, or
+   whether sessions need a name.
 6. Write the files. Then verify:
    - `{{HK3_ROOT}}/harmonik-v3 config` shows the values you meant.
    - `{{HK3_ROOT}}/harmonik-v3 build roles` succeeds; inspect one
