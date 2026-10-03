@@ -3,6 +3,7 @@
 Source: [requirements.md](requirements.md). Research: [research-herdr.md](research-herdr.md),
 [research-messaging.md](research-messaging.md). Principle:
 [zero framework cognition](../../docs/concepts/zero-framework-cognition.md).
+Reviews: [review-scope.md](review-scope.md), [review-technical.md](review-technical.md).
 
 ## Problem Statement
 
@@ -10,20 +11,19 @@ hk3 starts one Claude Code agent at a time, each in a terminal the operator
 opens by hand. There is no way to start a team: several agents with set roles
 that know about each other and can message each other. A captain (the
 primary agent on a project) cannot add crew when the work grows, and cannot
-clean them up at the end. The operator has no single place to see which
-agents are running. Nothing in a name says that two agents belong together,
-so an agent could message another team's member and start work that should
-not happen.
+clean them up at the end. Nothing in a name says that two agents belong
+together, so an agent could message another team's member and start work
+that should not happen.
 
 ## Solution
 
-hk3 becomes a small router over submodules. Keeper becomes the first
-submodule. Two new submodules are added:
+hk3 becomes a small router over modules. Keeper becomes the first module.
+Two new modules are added:
 
-- **session**: starts, lists and stops hk3 agents inside herdr. A team is a
-  herdr workspace; each member is a tab. The operator attaches to herdr to
-  see every agent and its state.
-- **crew**: starts a team from a YAML crew definition, adds and removes
+- **session**: starts and stops hk3 agents inside herdr. A team is a herdr
+  workspace; each member is a tab. The operator attaches to herdr directly
+  to see every agent and its state.
+- **crew**: starts a team from a YAML crew definition, adds and stops
   members, and keeps a roster file listing who is on the team, their roles
   and their responsibilities.
 
@@ -32,66 +32,56 @@ A naming rule makes membership obvious: team members are
 that adds a tester gets `oc-alpha--tester`; its team is `alpha`.
 
 Members talk with Claude Code's cross-session messaging, addressing each
-other by label. A `crew` skill, loaded into every agent, says how to read the
-roster, how to address teammates, and to act only on messages from its own
-roster. Workflows are YAML files that agents read and follow; hk3 only
-stores, lists and checks their structure. The operator's own
-project-management skill plugs in through a project-local skill folder.
+other by label. A short `crew` skill, loaded into every agent, says how to
+find the roster and the commands to grow or shrink the team. Workflows are
+YAML files that agents read and follow; hk3 only checks that they parse and
+have a description. The operator's own project-management skill plugs in
+through a project-local skills folder.
 
 hk3 decides nothing about the work: who does what, when a member is done,
 or whether to grow or shrink the team. Those are the agents' judgment.
 
 ## User Stories
 
-Operator, teams:
+Operator:
 
-1. As an operator, I want to start a team from a named crew definition with one command, so that I can spin up a team with a known shape.
-2. As an operator, I want to give the team a name (e.g. `alpha`), so that several teams can run in one project without clashing.
-3. As an operator, I want every member's label to contain the project prefix and team name, so that I can tell at a glance which team an agent belongs to.
-4. As an operator, I want a crew definition to allow several members with the same role, so that I can run two builders.
-5. As an operator, I want same-role members numbered predictably (`builder-1`, `builder-2`), so that names are stable and guessable.
-6. As an operator, I want crew definitions in the hk3 repo shared across projects and in the project for project-specific shapes, so that I can reuse shapes and still tailor them.
-7. As an operator, I want a project definition to win over a shared one with the same name, so that a project can override a shared shape.
-8. As an operator, I want to start a team from a one-off definition file, so that a team can be put together for a particular problem.
-9. As an operator, I want hk3 to refuse an invalid definition (unknown role, duplicate names, bad names, missing workflow) before anything starts, so that I never get half a team.
-10. As an operator, I want hk3 to refuse to start a member whose label is already running, so that two sessions never share a name.
-11. As an operator, I want to list the available crew definitions and workflows with their descriptions, so that I can pick one.
-12. As an operator, I want to see a team's roster with which members are live, so that I know the team's current state.
-13. As an operator, I want to attach to one herdr view showing every hk3 agent grouped by team, so that I can see where things are and step in.
-14. As an operator, I want to stop one member or a whole team with one command, so that I can clean up.
-15. As an operator, I want stopping to ask Claude to exit cleanly before closing its pane, so that session-end hooks and keeper state are not cut off.
-16. As an operator, I want to start a single agent inside herdr, so that solo agents also show in the herdr view.
-17. As an operator, I want `hk3 new agent claude`, `hk3 resume agent claude`, `hk3 init`, `hk3 config`, `hk3 build` and `hk3 list` to work as before, so that nothing I use today breaks.
-18. As an operator, I want to start a team member in a plain terminal with a team name, so that I can use the naming without herdr.
+1. As an operator, I want to start a named team (e.g. `alpha`) from a crew definition with one command, so that I can spin up a team with a known shape.
+2. As an operator, I want a crew definition to allow several members with the same role, named predictably (`builder`, `builder-2`), so that I can run two builders.
+3. As an operator, I want crew definitions both in the hk3 repo and in the project, so that I can reuse shapes and still tailor them.
+4. As an operator, I want to start a team from a one-off definition file, so that a team can be put together for a particular problem.
+5. As an operator, I want hk3 to refuse an invalid definition (unknown role, duplicate or bad names, bad workflow) before anything starts, so that a bad file starts nothing.
+6. As an operator, I want hk3 to refuse to start a member whose label is already running, so that two sessions never share a name.
+7. As an operator, I want to see a team's roster with which members have a live herdr tab, so that I know the team's current state.
+8. As an operator, I want every hk3 agent grouped by team in one herdr view, so that I can see where things are and step in.
+9. As an operator, I want to stop one member or a whole team with one command, and have Claude exit cleanly first, so that I can clean up without cutting off session-end hooks.
+10. As an operator, I want a stopped team's roster removed, so that I can start a team with that name again.
+11. As an operator, I want `hk3 new agent claude`, `hk3 resume agent claude`, `hk3 init`, `hk3 config`, `hk3 build` and `hk3 list` to work as before, so that nothing I use today breaks.
+12. As an operator, I want a member started by a captain to run in my project with my settings, and nothing from the captain's own session, so that it is a clean, independent agent.
 
 Captain:
 
-19. As a captain, I want to tell hk3 to add a member with a given role to my team, so that I can grow my team when the work grows.
-20. As a captain running solo as `oc-alpha`, I want adding a tester to create team `alpha` with me in it and the tester as `oc-alpha--tester`, so that I become a team without being renamed or restarted.
-21. As a captain, I want hk3 to take my team from my own label when I add members, so that I cannot add crew to another team by accident.
-22. As a captain, I want to start a whole crew definition from inside my session, with me filling its lead slot, so that I am added to the crew rather than a second captain being started.
-23. As a captain, I want to give a member a one-line responsibility when I add it, so that the team knows what it is for.
-24. As a captain, I want to find an existing workflow or write a new one and attach it to my team, so that the team has a shared process to follow.
-25. As a captain, I want to stop members, and the rest of my team at the end, so that I clean up when the project is done.
-26. As a captain, I want my own session left running when I stop my team, so that I can report back to the operator.
+13. As a captain, I want to add a member with a given role to my team, so that I can grow my team when the work grows.
+14. As a captain running solo as `oc-alpha`, I want adding a tester to create team `alpha` with me in it and the tester as `oc-alpha--tester`, so that I become a team without being renamed or restarted.
+15. As a captain, I want hk3 to take my team from my own identity when I add or stop members, so that I cannot change another team by accident.
+16. As a captain, I want to start a whole crew definition from inside my session, with me filling its lead slot under my actual role, so that I am added to the crew rather than a second captain being started.
+17. As a captain, I want to give a member a one-line responsibility when I add it, so that the team knows what it is for.
+18. As a captain, I want to find a workflow file (or write one) and tell my team its path, so that the team has a shared process to follow.
+19. As a captain, I want to stop named members, or the rest of my team at the end with an explicit `--all`, while my own session keeps running, so that I clean up and can still report back.
 
 Every member:
 
-27. As a member, I want to know at startup who I am, my role, and my team, so that I can start working without asking.
-28. As a member, I want to read my team's roster (labels, roles, responsibilities, workflow) with one command, so that I know whom to message for what.
-29. As a member, I want the roster to change when members are added or removed, so that I never message someone who left.
-30. As a member, I want to be told when the roster changes, so that I re-read it. (The agent who changed it sends the message, by convention.)
-31. As a member, I want to message a teammate by its label and have it delivered even if the teammate is idle, so that work can be handed over.
-32. As a member, I want every message to name its sender and team on the first line, so that the receiver can check it against its roster.
-33. As a member, I want a convention not to start work from a sender that is not on my roster, so that a wrong-team message does not start work.
-34. As a member, I want the team's workflow file to be plain YAML I can read, so that I follow it with my own judgment.
-35. As a member, I want my own handoff and keeper restart to keep working as a team member, so that long tasks survive context limits.
+20. As a member, I want to know at startup who I am, my role, and my team, so that I can start working without asking.
+21. As a member, I want to read my team's roster (labels, roles, responsibilities, workflow) with one command, so that I know whom to message for what.
+22. As a member, I want the roster to reflect members added or removed, so that I never message someone who left.
+23. As a member, I want to message a teammate by its label and have it delivered even if the teammate is idle, so that work can be handed over.
+24. As a member, I want to recognise a message from outside my team by its sender's label, so that a wrong-team message does not start work.
+25. As a member, I want the team's workflow file to be plain YAML I can read, so that I follow it with my own judgment.
+26. As a member, I want my own handoff and keeper restart to keep working, with a handoff file that no other agent shares, so that long tasks survive a context limit. (Keeper still runs one cycle per launch.)
 
 Project setup:
 
-36. As an operator, I want to drop my own project-management skill into the project and have chosen roles load it, so that teams manage work my way, not hk3's.
-37. As an operator, I want to define a project-only role, so that a crew definition can use it.
-38. As an operator, I want team state files kept out of git, so that runtime state does not pollute the project.
+27. As an operator, I want to drop my own project-management skill into the project and have roles load it, so that teams manage work my way, not hk3's.
+28. As an operator, I want team state files kept out of git without re-running `hk3 init`, so that runtime state does not pollute the project.
 
 ## Implementation Decisions
 
@@ -99,85 +89,105 @@ Project setup:
 
 - The CLI keeps its core commands (`init`, `new|resume agent claude`,
   `config`, `build`, `list`) unchanged. Any other first word that names a
-  folder in the repo's modules directory is forwarded: hk3 resolves the
-  project, loads settings, then execs that module's single executable
-  entrypoint with the remaining arguments. Unknown words print usage.
-  *Rationale: one rule, no registry, existing commands untouched.*
+  module folder with an executable entrypoint is forwarded: hk3 resolves the
+  project, loads settings, exports the resolved project directory and the hk3
+  repo root, then execs the entrypoint with the remaining arguments. Unknown
+  words print usage. *Rationale: one rule, no registry.*
 - Shared bash helpers (die, settings loading, project resolution, label
-  building and parsing) move into one library that the CLI and every module
-  source. *Rationale: one implementation of naming and settings.*
-- `hk3 --help` lists core commands, then each module with the one-line
-  summary from its entrypoint. *Rationale: discovery without a registry.*
-- Modules call each other only through the `hk3 <module>` command line.
-  *Rationale: the CLI is the one seam to test.*
+  building) move into one library that the CLI and every module source.
+  *Rationale: one implementation of naming and settings.*
+- The help text lists modules by hand. *Rationale: no discovery code.*
+- Modules call each other and the launcher through the absolute path of the
+  hk3 script, never through `hk3` on PATH. *Rationale: the CLI is the one
+  seam, and it works without PATH setup.*
 - Keeper becomes the first module: its folder holds the plugin and the
-  `KEEPER_*` defaults, and its entrypoint offers `hk3 keeper check` (the
-  plugin's validate and test runs). The core launch still loads the plugin,
-  now from the module folder. Keeper behavior does not change.
-  *Rationale: keeper's code stays in one focused place.*
-  **Needs operator confirmation** (moves the plugin's path).
+  `KEEPER_*` defaults. It has no commands yet; the core launch loads the
+  plugin from the module folder. Keeper behavior does not change.
+  *Rationale: requirements name keeper as the first module and ask that its
+  code stay focused.* **Needs operator confirmation** (open question 2:
+  moves the plugin's path).
 
 ### 2. Session module (herdr)
 
-- Operations, and nothing else:
-  - `hk3 session start [--team <team>] --name <name> [--role <role>] [-- <claude args>]`
-  - `hk3 session list [--team <team>]`
-  - `hk3 session stop <label>`
-  - `hk3 session attach`
-  *Rationale: the minimum to start, see and clean up agents.*
+- Two commands: `hk3 session start [--team <team>] --name <name> [--role <role>]`
+  and `hk3 session stop <label>`, plus an internal tab listing used by the
+  crew module. The operator views agents with `herdr session attach hk3`
+  (README). *Rationale: the minimum to start and clean up agents.*
 - All agents live in one herdr session, named by `HK3_HERDR_SESSION`
-  (default `hk3`). hk3 starts its server in the background when it is not
-  running. *Rationale: one place for the operator to attach.*
+  (default `hk3`). `session` and `crew` commands require
+  `HK3_PROJECT_PREFIX`, so workspace labels from different projects do not
+  collide. *Rationale: one place to attach; prefix keeps projects apart.*
+- **Clean environment.** A captain runs these commands from Claude's Bash
+  tool, whose environment carries Claude's own variables (`CLAUDECODE`,
+  `CLAUDE_CODE_*`) and the captain's identity (`HK3_*`, `KEEPER_*`,
+  `HARMONIK_AGENT`). None of it may reach a member:
+  - hk3 starts the herdr server detached with those variables removed, and
+    waits until the server reports ready.
+  - The command typed into a pane removes the same variables, then sets
+    explicitly the resolved project directory, project prefix and other
+    resolved `HK3_*`/`KEEPER_*` settings, except per-agent ones (agent name,
+    agent id, team, role, `KEEPER_ENABLED`). Every value is shell-quoted.
+  *Rationale: otherwise members start as child Claude sessions, possibly on
+  the captain's messaging socket, and inherit the captain's team or project.*
 - A team maps to a herdr workspace labelled with the team label
   (`oc-alpha`); each member is a tab labelled with its own label. A solo
   agent's workspace is labelled with its own label, which is also the team
-  label it would have if it grew a team. *Rationale: workspaces roll up
-  status per team in herdr's sidebar; captain-becomes-team needs no move.*
-- Start: find or create the workspace (project root as cwd, no focus),
-  create a tab, and type the normal hk3 launch command into it, followed by
-  an exit of the pane's shell so the tab closes when Claude exits. The
-  command uses the absolute path of the hk3 script. *Rationale: one launch
-  path; hk3 still composes roles, keeper and the name.* Using herdr's
-  `agent start` instead is left to the spike's result.
-- Start refuses when a tab with that label already exists.
+  label it would have if it grew a team. The first agent in a new workspace
+  uses the workspace's root tab (renamed); later members get new tabs.
+  *Rationale: workspaces roll up status per team; no stray empty tab.*
+- Start: find or create the workspace (project root as cwd, no focus), get
+  a tab, and type the hk3 launch command followed by `&& exit`, so the tab
+  closes when Claude exits normally and stays open, showing the error, if
+  the launch fails. After typing, check the tab still exists; fail if not.
+  Start refuses when a tab with that label already exists.
 - Every herdr call names the session explicitly, so the same command works
   from the operator's terminal or from an agent inside herdr. That is how an
-  agent starts siblings. *Rationale: verified in research; no special case.*
-- Stop: send `/exit` to the member's pane, wait a fixed grace period for the
-  tab to close, then close it. Close the workspace when its last tab goes.
-  *Rationale: herdr #4851 kills Claude before SessionEnd hooks.*
-- List reads herdr's workspace and tab lists and prints team label, member
-  label and pane id. It never reads agent state (herdr's state detection is
-  screen-scraped and unreliable).
+  agent starts siblings.
+- Stop: clear the input box (the key the spike finds), send `/exit`, wait a
+  fixed grace period for the tab to close, then close it; close the
+  workspace when its last tab goes. Stopping a label with no tab exits 0
+  with a notice. *Rationale: herdr #4851 kills Claude before SessionEnd
+  hooks.*
+- Launch is always `herdr pane run` of the hk3 command; herdr's
+  `agent start` is not used (it bypasses hk3 and rejects some labels). hk3
+  never reads herdr's agent state.
 - `hk3 new agent claude` keeps working without herdr.
 
 ### 3. Naming
 
-- Grammar (recommended form, `oc-alpha--builder`):
+- Grammar (proposed default, open question 1):
 
   ```
   solo agent   <prefix>-<name>               oc-alpha
   team label   <prefix>-<team>               oc-alpha
   member       <prefix>-<team>--<member>     oc-alpha--builder
-  same role    <member>-<n>, n from 1        oc-alpha--builder-1, oc-alpha--builder-2
+  same role    first bare, then -2, -3 ...   oc-alpha--builder, oc-alpha--builder-2
   ```
 
-  *Rationale: it is the only candidate where a solo captain's label is
+  *Rationale: the only candidate form where a solo captain's label is
   already the team label, so `oc-alpha` growing `oc-alpha--tester` needs no
-  rename; `--` appears once and marks membership.*
+  rename; one numbering rule for definitions and adds.*
 - Prefix, team and member parts use the current character set
-  (`[A-Za-z0-9_-]`) and must not contain `--`. The team is the part of the
-  name before `--`; a solo agent's team is its whole name.
-- `hk3 new|resume agent claude` gains `--team <team>`. It sets the label as
-  above and exports `HK3_TEAM`. `--name alpha--builder` (a `--` inside a
-  name) is refused; `--team` is the one way to form a member name.
-- With count 1 a member is just its name (`builder`). With count > 1 they
-  are numbered from 1. Adding another `builder` to a team that has
-  `builder` gives `builder-2` (lowest free number from 2).
+  (`[A-Za-z0-9_-]`) and must not contain `--`.
+- `hk3 new|resume agent claude` gains `--team <team>`. With it, hk3
+  validates `--name`, then sets `HK3_AGENT_NAME=<team>--<name>` and
+  `HK3_TEAM=<team>`. The label is `<prefix>-<team>--<name>`. A `--` typed
+  inside `--name` is refused; `--team` is the one way to form a member name.
+  Solo agents are unchanged.
+- `HARMONIK_AGENT` is the full label (`hk3-` in front when there is no
+  prefix). *Rationale: keeper's `{name}` and the older harmonik's markers
+  must be unique per member; `HANDOFF-{name}` becomes
+  `HANDOFF-alpha--builder`.*
+- Identity, read mechanically:
+  - **Inside an hk3 session** means `HK3_AGENT_ID` is set (only the
+    launcher sets it, and the clean environment above keeps it from leaking).
+  - The caller's team is `HK3_TEAM` if set, else `HK3_AGENT_NAME`.
+  - The team label is the part of `HK3_AGENT_ID` before `--`.
+- Same-role names: the lowest free name among `builder`, `builder-2`,
+  `builder-3`, ...
 - In a team started from a definition, the lead is a normal member
-  (`oc-alpha--captain`). In a team grown by a solo captain, the founder keeps
-  `oc-alpha`. Both are members of team `alpha`.
-  **Needs operator confirmation** (form and numbering).
+  (`oc-alpha--captain`). In a team grown by a solo captain, or joined by a
+  captain, the founder keeps `oc-alpha`.
 
 ### 4. Crew definitions
 
@@ -199,91 +209,101 @@ Project setup:
   ```
 
   `role` is required and must be a known role; `name` defaults to the role;
-  `count` defaults to 1; `responsibility` defaults to the role's
-  description. Structural checks only. *Rationale: the smallest shape that
-  covers the operator's example.*
+  `count` defaults to 1; `responsibility` (one line) defaults to the role's
+  description. Structural checks only.
 - Lookup by name: the project's `.harmonik-v3/crews/`, then the hk3 repo's
   crews folder. An argument that is a path is used as a file.
-  *Rationale: same project-wins rule as role overlays.*
-- `hk3 crew start <crew> --team <team> [--workflow <name>]` (operator):
-  validate, write the roster, start every member through
-  `hk3 session start`.
-- From inside an hk3 session, `hk3 crew start <crew>` uses the caller's own
-  team, records the caller in the lead (first) slot, and starts the rest.
-  *Rationale: the captain already exists and is added, not started.*
+- `hk3 crew start <crew> --team <team>` (operator, outside a session):
+  validate, refuse if the team has a roster (point to `crew add`, or
+  `crew stop --all` for a stale one), refuse if the team label itself is a
+  live tab (point to running the start from inside that agent, or another
+  team name), refuse if any member label is live; then write the roster and
+  start every member.
+- From inside an hk3 session, `hk3 crew start <crew>` uses the caller's
+  team. The caller fills the lead (first) slot and is recorded with its
+  actual role; the slot's `responsibility` is used only if the definition
+  gives one. The rest are started. **Open question 3.**
 - `hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`
-  adds one member. Inside a session the team defaults to the caller's; the
-  first add from a solo agent creates the roster with the caller as its
-  first member. Outside a session `--team` is required.
-- Each started member gets a first prompt from a fixed template: its label,
-  role and team, and to run `hk3 crew roster`. Mechanical text, no
-  judgment.
+  adds one member. Inside a session the team is the caller's; the first add
+  from a solo agent creates the roster with the caller (its actual role) as
+  first member. Outside a session `--team` is required. Newlines in
+  `--responsibility` are refused.
+- Order and failure: name choice, roster write and tab start happen under a
+  simple lock in the teams folder. The roster is written before a member
+  starts, so its first look sees itself. If a start fails partway through
+  `crew start`, hk3 stops, prints which members started, and leaves cleanup
+  to `crew stop`. No rollback.
+- Each started member gets a one-line first prompt from a fixed template:
+  its label, role, team, and to run `hk3 crew roster`.
 - hk3 ships one example definition and adds a `captain` role.
 
 ### 5. Workflows
 
 - A workflow is a YAML file the agents read and follow. hk3 checks only
-  that it parses and has a `description`; every other key is free-form for
-  agents. *Rationale: hk3 never interprets or enforces process.*
+  that it parses and has a `description`; every other key is free-form.
+  *Rationale: hk3 never interprets or enforces process.*
 - Lookup: the project's `.harmonik-v3/workflows/`, then the hk3 repo's.
-  hk3 ships one example.
-- `hk3 crew defs` lists crew definitions and workflows (name, description,
-  where found) and flags any that fail the structural check.
-- A team's workflow (from the definition or `--workflow`) is recorded in
-  the roster by name and path. A captain creates a new one by writing a file
-  in the project's workflows folder; the `crew` skill says where.
+  hk3 ships one example, referenced by the example crew.
+- A definition's `workflow` is resolved to a path at `crew start` and
+  written into the roster. A team grown with `crew add` has no workflow
+  field; its captain tells the team the file path. The `crew` skill names
+  the two workflow folders.
 
 ### 6. Roster
 
 - hk3 writes one roster file per team in the project's `.harmonik-v3/teams/`
-  (gitignored). It holds team, team label, crew, workflow (name and path),
-  and members (label, role, responsibility). hk3 rewrites it whole on start,
-  add and stop. *Rationale: a file is the plainest shared state.*
-- `hk3 crew roster [--team <team>]` prints the roster plus which members
-  have a live herdr tab, and inside a session the caller's own label.
-- Agents learn of the roster through the first prompt and the `crew`
-  skill. Changes reach them by convention: whoever adds or stops a member
-  messages the team. hk3 never messages agents.
-- `hk3 crew stop [<member>...] [--team <team>]` stops the named members, or
-  the whole team, through `hk3 session stop` and removes them from the
-  roster. Inside a session, stopping the whole team leaves the caller
-  running.
+  and puts a `.gitignore` containing `*` in that folder when it creates it.
+  The roster holds team, team label, crew, workflow (name and path), and
+  members (label, role, responsibility). hk3 rewrites it whole on every
+  change.
+- `hk3 crew roster [--team <team>]` prints the roster, which members have a
+  live herdr tab, and, inside a session, the caller's own label. Liveness
+  covers herdr tabs only; a captain in a plain terminal shows as not live.
+- `hk3 crew stop <member>... | --all [--team <team>]` stops the named
+  members through `hk3 session stop` and removes them from the roster, even
+  when they have no tab (with a note; the operator closes a plain terminal by
+  hand). `--all` stops every member except the caller; from outside a
+  session it stops all and deletes the roster. Bare `crew stop` is refused.
+- Agents learn of the roster through the first prompt and the `crew` skill;
+  a member re-reads it when it needs to. hk3 never messages agents.
 
 ### 7. Messaging
 
 - Transport is Claude Code cross-session messaging (`ListAgents`,
-  `SendMessage`) addressed by label, which hk3 already passes as `--name`.
-  *Rationale: built in; no agent-teams feature needed.*
-- A `crew` skill in the base config (every agent) states the protocol:
-  find yourself and your team with `hk3 crew roster`; address teammates by
-  exact roster label; start each message with
-  `[<team>] <your label>:`; do not start work for a sender not on your
-  roster (reply or tell the operator instead); after adding or stopping a
-  member, message the team to re-read the roster. Conventions only.
-- Wrong-team protection is the naming plus that convention. `crew add` and
-  `crew start` default to the caller's own team.
-- `crossSessionInbound` behavior under `--dangerously-skip-permissions` is
-  unverified. If the spike shows messages are held or refused, the base
-  config sets it to `accept`.
+  `SendMessage`) addressed by label, which hk3 passes as `--name`.
+- Claude holds a cross-session message for the user's approval (and may let
+  it expire) when the receiver runs in a different permission mode from the
+  sender. hk3 agents all launch in the same mode (skip-permissions by
+  default), so delivery between them should be automatic; the spike
+  confirms. Mixing permission modes within a team breaks delivery. If the
+  spike shows messages are still held, the base config sets
+  `crossSessionInbound: accept`.
+- The `crew` skill, in the base config so every agent has it, says only:
+  run `hk3 crew roster` to see who you are and who is on your team;
+  teammates are the labels on the roster; your team is the part of a label
+  before `--`; treat a message from another team with suspicion and tell
+  the operator; grow the team with `crew add` (not `crew start` once a
+  roster exists), clean up with `crew stop`; workflows live in the two
+  workflow folders. A sender header is added only if the spike shows the
+  receiver cannot see who sent a message.
+- Wrong-team protection is the naming, the caller-derived team in `crew`
+  commands, and that one line of the skill.
 
 ### 8. Project-management skill slot
 
-- Projects may hold their own skills in `.harmonik-v3/skills/` and their own
-  roles in `.harmonik-v3/roles/`. Role composition looks in the project
-  first, then the hk3 repo. The operator's project-management skill goes in
-  the project folder and is listed by the roles that need it (or by the
-  project overlay for all roles). hk3 ships no project-management content.
-  **Needs operator confirmation** (project-local roles).
+- Role composition also looks for skills in the project's
+  `.harmonik-v3/skills/` (project first, then the hk3 repo). The project
+  overlay lists the operator's project-management skill for every role.
+  hk3 ships no project-management content.
 
 ### 9. Spike first
 
-- Ticket 01 verifies the risky assumptions end to end before anything else
-  is built: hk3 agents launched in herdr tabs; `--name` with a `--` label;
-  two agents see and message each other by label; an idle agent wakes on a
-  message; `crossSessionInbound` default under skip-permissions; `/exit`
-  through herdr runs SessionEnd and closes the tab; a first prompt passed
-  after `--` is submitted; an agent inside herdr can start a sibling tab.
-  Results are added to the research notes and may change decisions 2 and 7.
+- Ticket 01 tests the risky assumptions by hand before anything is built,
+  with a pass/fail for each and a go/no-go: launches in herdr panes, clean
+  environment, label addressing with `--` labels, delivery while busy and
+  idle, delivery after keeper's compaction and after `/clear`, clean
+  `/exit`, sibling start. Results go into the research notes and may change
+  decisions 2 and 7.
 
 ## Testing Decisions
 
@@ -294,27 +314,38 @@ Project setup:
   a scratch git repo with `.harmonik-v3/`, never a real project.
 - For the session and crew modules: real herdr in a throwaway herdr session
   (`HK3_HERDR_SESSION=hk3test`) with the fake `claude`. The fake also waits
-  on stdin and exits on `/exit`, so start, list and clean stop are checked
-  without spending tokens. Inspect tab labels, the typed command line and
-  the environment in each pane. Stop the test herdr session afterwards.
-- Definitions and workflows: valid and invalid fixture files run through
-  `hk3 crew defs` and `hk3 crew start`; invalid ones must start nothing.
+  on stdin and exits on `/exit`, so start and clean stop are checked
+  without spending tokens. Start the test server with the fake's directory
+  first on PATH, and check `command -v claude` in a pane before the first
+  launch (a login shell may rebuild PATH and run the real `claude`).
+- Environment check: start the server from a shell with `CLAUDECODE`,
+  `CLAUDE_CODE_*`, `HK3_AGENT_ID`, `HK3_TEAM` and `HK3_PROJECT_DIR` set; the
+  fake in each pane must print none of them except the values hk3 set.
+- Definitions and workflows: valid and invalid fixture files through
+  `hk3 crew start`; invalid ones must start nothing.
 - Router: every existing command gives the same output as before with the
-  fake `claude`; `hk3 keeper check` runs the plugin's validate and tests.
-- Live Claude only where behavior cannot be faked: the spike, and the
+  fake `claude`, except the keeper plugin path.
+- Live Claude only where behavior cannot be faked: the spike, and one
   messaging check (two members exchange messages; an idle member wakes).
+  The first launch in a directory may show trust or bypass dialogs.
 - Each ticket that adds a check adds it to docs/testing.md.
 
 ## Out of Scope
 
 - A work board, task list or any hk3-owned tracking of work.
 - Enforcing process: validating transitions, gates, or workflow steps.
-- Interpreting workflows; workflow semantics beyond "parses and has a description".
+- Interpreting workflows beyond "parses and has a description".
 - Detecting completion, idleness or blocked state (including herdr `agent wait`).
-- hk3 sending messages or notifications to agents.
-- A hook or filter that blocks cross-team messages; protection beyond naming and the protocol convention.
-- Agent teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`).
-- Resuming a whole team after a restart; restarting dead members.
+- hk3 sending messages or notifications to agents, including roster-change broadcasts.
+- A hook or filter that blocks cross-team messages; a required message header.
+- Agent teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`); herdr `agent start`.
+- `hk3 keeper check` or any keeper command (deferred).
+- Module discovery for `hk3 --help` (modules listed by hand).
+- `hk3 session list` and `hk3 session attach` as commands (use `crew roster` and `herdr session attach hk3`).
+- `hk3 crew defs` listing (agents and operators `ls` the folders; bad files are refused at start).
+- A `--workflow` flag on `crew start` or `crew add`.
+- Project-local roles (deferred; project-local skills cover the slot).
+- Resuming a whole team or restarting dead members (a member is resumed by hand with `hk3 resume agent claude --team ... --name ...`).
 - A tmux backend or fallback for teams.
 - `herdr integration install`, or any change to the operator's global Claude or herdr config.
 - Resource limits, scheduling, or model selection per member.
@@ -324,24 +355,23 @@ Project setup:
 ## Further Notes
 
 - herdr is pre-1.0 and changes fast. The session module is the only code
-  that calls herdr, so a version change touches one place.
-- `hk3` is assumed to be on PATH inside agent sessions (README step 2);
-  agents run `hk3 crew ...` themselves.
-- Concurrent roster writes (two agents adding at once) are not guarded in
-  the first version; the last write wins.
-- A label is the Claude session name, the herdr tab label, and the keeper
-  `{name}` source, so handoff files become e.g. `HANDOFF-alpha--builder.md`.
+  that calls herdr.
+- Agents run `hk3 crew ...` themselves, so `hk3` must be on PATH inside
+  sessions (README step 2). hk3's own code uses the absolute path.
+- Keeper runs one handoff cycle per launch; a long-lived member gets one
+  automatic handoff. That limit predates this plan.
+- Herdr keeps a tab's label separate from the terminal title, so Claude
+  setting its title should not change the label; the spike confirms.
 
 ## Open questions for the operator
 
-1. Naming: `oc-alpha--builder`, with same-role members `builder-1`,
-   `builder-2`? And should a team started from a definition name its lead
-   `oc-alpha--captain` (proposed) or plain `oc-alpha`?
+1. Naming: `oc-alpha--builder`, with same-role members `builder`,
+   `builder-2`, `builder-3`? And should a team started from a definition
+   name its lead `oc-alpha--captain` (proposed) or plain `oc-alpha`?
 2. Keeper module: OK to move the keeper plugin into a modules folder (its
    path in docs changes)?
-3. Project-management slot: project-local skills only, or also
-   project-local roles (proposed: both)?
-4. One herdr session (`hk3`) for all projects (proposed), or one per
-   project?
-5. When a captain starts a definition from inside its session, it takes the
-   first (lead) slot. OK, or should the definition name the lead slot?
+3. When a captain starts a definition from inside its session, it takes the
+   first (lead) slot and is recorded with its actual role. OK, or should the
+   definition name the lead slot?
+4. One herdr session (`hk3`) for all projects, with a project prefix
+   required (proposed), or one per project?
