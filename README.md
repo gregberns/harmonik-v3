@@ -16,7 +16,8 @@ own `.harmonik-v3/` folder.
 ## Getting started
 
 **1. Install the prerequisites:** Claude Code 2.1.280 or later, plus `yq`
-(mikefarah v4) and `jq`.
+(mikefarah v4) and `jq`. To run agents in herdr (`hk3 session`), also
+[herdr](https://herdr.dev) 0.9.3 or later.
 
 ```sh
 brew install yq jq
@@ -71,6 +72,37 @@ lower the threshold for one launch:
 ```sh
 KEEPER_RESTART_TOKEN_COUNT=500 hk3 new agent claude --name alpha
 ```
+
+## Agents in herdr
+
+`hk3 session` starts agents in [herdr](https://herdr.dev), so you see every
+agent in one place instead of one terminal each. It needs a project prefix
+(`HK3_PROJECT_PREFIX`, which `hk3 init` sets).
+
+```sh
+hk3 session start --name alpha                      # oc-alpha, in its own workspace
+hk3 session start --team alpha --name builder --role builder   # oc-alpha--builder joins workspace oc-alpha
+hk3 session tabs                                    # this project's open tabs (a tab may have no agent)
+hk3 session stop oc-alpha--builder                  # Claude exits via /exit, then the tab closes
+```
+
+A team is a herdr workspace (`oc-alpha`) and each agent a tab in it. All
+agents share one herdr session, `hk3` (set `HK3_HERDR_SESSION` to change
+it). Watch and step in with:
+
+```sh
+herdr session attach hk3
+```
+
+Two things to know:
+
+- **Trust the project once first.** The first Claude launch in a folder asks
+  whether you trust it, with "No, exit" selected. hk3 never answers that
+  prompt. Run a plain `hk3 new agent claude` in the project once, or attach
+  and answer it.
+- **After a herdr server restart** herdr restores the tabs, with plain shells
+  and no agent in them, and `hk3 session start` refuses those labels. Clear
+  one with `hk3 session stop <label>`.
 
 ## Roles
 

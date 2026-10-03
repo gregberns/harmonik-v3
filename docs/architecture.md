@@ -11,6 +11,7 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 | `lib/hk3.sh` | Shared library for the CLI and modules: settings loading, project resolution, naming. Nothing else. |
 | `modules/<name>/` | One module per concern. `main`, when present and executable, is its command entrypoint. |
 | `modules/keeper/` | Keeper: `plugin/` hands off and restarts a session at a token threshold; `defaults.sh` holds the `KEEPER_*` defaults. No commands. |
+| `modules/session/` | `hk3 session start/stop/tabs`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
 | `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin. |
 | `scripts/statusline` | Claude status line: agent badge and role, then the project's own status line. |
 | `config/base.yaml`, `config/roles/*.yaml` | Role definitions. |
@@ -35,7 +36,70 @@ naming helpers, and calls the launcher or other modules only through
 router, then modules, then the library. No module reads another module's
 files.
 
-Modules today: `keeper` (no commands; the core launch loads its plugin).
+Modules today: `keeper` (no commands; the core launch loads its plugin) and
+`session` (agents in herdr, below).
+
+## Session module (herdr)
+
+`hk3 session start [--team <team>] --name <name> [--role <role>]` runs an
+hk3 agent in [herdr](https://herdr.dev); `hk3 session stop <label>` ends it;
+`hk3 session tabs` prints the labels of the open tabs with the project
+prefix, for other modules to check which labels are taken. A listed label is
+a tab, not proof of a running agent. Stop refuses a label without the
+prefix, so it never touches the operator's own tabs.
+
+- **Team = workspace, member = tab.** Every agent lives in one herdr session
+  (`HK3_HERDR_SESSION`, default `hk3`). A team is a workspace labelled with
+  the team label (`oc-alpha`); each agent is a tab labelled with its own
+  label (`oc-alpha--builder`). A solo agent's workspace has its own label,
+  which is also the team label if it grows a team. The first agent in a new
+  workspace takes its root tab, so there is no stray empty tab. The project
+  prefix is required so labels from different projects never collide.
+- **One adapter.** `modules/session/herdr.sh` holds every herdr call behind
+  a few label-based operations (ensure server, open tab, type a line, send
+  keys, wait for output, list and close tabs). herdr ids, JSON and flags stay
+  inside it. ids are looked up by label on every call, since herdr never
+  reuses them. Every call names the session explicitly, so the same command
+  works from a terminal or from an agent inside herdr (that is how an agent
+  starts a sibling).
+- **Clean environment.** A captain runs `hk3 session start` from Claude's
+  Bash tool, whose environment carries Claude's own variables and the
+  captain's identity. None of it may reach a member: a leaked
+  `CLAUDE_CODE_CHILD_SESSION` makes a child session that cannot be messaged
+  or resumed, and a leaked `HK3_TEAM` or `HK3_PROJECT_DIR` puts the member
+  in the wrong team or project. The scrub list is `CLAUDECODE`, every
+  `CLAUDE_CODE_*`, `CLAUDE_PID`, `CLAUDE_EFFORT`, every `HK3_*` and
+  `KEEPER_*`, and `HARMONIK_AGENT`. It is applied twice: the herdr server is
+  started (detached) without them, and the command typed into the tab
+  removes them again in the tab's shell (which may set its own), then sets
+  the caller's resolved settings explicitly (project dir, prefix, herdr
+  session, any shell-only `HK3_*`/`KEEPER_*`), except the per-agent ones
+  (name, id, team, role, `KEEPER_ENABLED`). herdr's own stripping covers
+  only four names and is not relied on.
+- **Start** refuses a label that already has a tab, opens the tab, types the
+  launch (the hk3 script by absolute path, ending in `&& exit`, so the tab
+  closes when Claude exits normally and stays open with the error if the
+  launch fails), then waits for the launcher's `hk3: claude` line or the
+  failure line `hk3: launch failed (exit N)`, then 2 s more for the failure
+  line, which catches claude failing right after it started. A start fails
+  if the tab closed. A lock in `/tmp` (one per herdr session) keeps
+  simultaneous starts from creating a team's workspace twice; if a stop
+  removes the team's workspace while a start joins it, the start creates it
+  again.
+- **Stop sends `/exit`.** Killing the tab would kill Claude before its
+  SessionEnd hooks run (herdr #4851). Stop sends `ctrl+c` (clears a draft of
+  any length and interrupts a running turn; `ctrl+u` clears one line, and
+  Esc Esc on an empty input opens Rewind), then `/exit` and Enter. If the
+  tab is still open after 2 s it sends one more Enter, which confirms
+  Claude's "Background work is running" dialog. After a 5 s grace period it
+  closes the tab. herdr closes a workspace when its last tab goes.
+- **Not handled by hk3:** Claude's folder-trust prompt (the operator trusts
+  the project once), and tabs herdr restores with no agent after a server
+  restart (start refuses them; `hk3 session stop <label>` clears them).
+- **Role builds are atomic.** `compose-role` builds into a temp folder beside
+  `build/roles/<role>/` and swaps it in with `mv`, or drops it if nothing
+  changed, so launches of one role at the same moment do not break each
+  other or the plugin folder of running agents.
 
 ## What a launch does
 

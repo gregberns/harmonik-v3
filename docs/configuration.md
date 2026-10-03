@@ -38,6 +38,11 @@ around values that contain spaces.
 | `HK3_CLAUDE_SKIP_PERMISSIONS` | `1` | Pass `--dangerously-skip-permissions`. |
 | `HK3_CLAUDE_REMOTE_CONTROL` | `0` | Pass `--remote-control`. |
 | `HK3_STATUSLINE_INNER` | found at launch | Status line command shown after the agent label. |
+| `HK3_HERDR_SESSION` | `hk3` | herdr session that `hk3 session` runs every agent in. |
+
+`hk3 session` commands refuse to run without `HK3_PROJECT_PREFIX`, so
+workspace and tab labels from different projects in the one herdr session
+never collide.
 
 ### Agent names and labels
 

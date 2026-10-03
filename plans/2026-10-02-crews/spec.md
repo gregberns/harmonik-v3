@@ -4,6 +4,7 @@ Source: [requirements.md](requirements.md). Research: [research-herdr.md](resear
 [research-messaging.md](research-messaging.md). Principle:
 [zero framework cognition](../../docs/concepts/zero-framework-cognition.md).
 Reviews: [review-scope.md](review-scope.md), [review-technical.md](review-technical.md).
+Spike: [spike-results.md](spike-results.md) (GO; decisions 2 and 7 updated from it).
 
 ## Problem Statement
 
@@ -143,14 +144,20 @@ These rules bind every ticket.
   projects apart. Can change later.*
 - **Clean environment.** A captain runs these commands from Claude's Bash
   tool, whose environment carries Claude's own variables (`CLAUDECODE`,
-  `CLAUDE_CODE_*`) and the captain's identity (`HK3_*`, `KEEPER_*`,
-  `HARMONIK_AGENT`). None of it may reach a member:
+  `CLAUDE_CODE_*`, `CLAUDE_PID`, `CLAUDE_EFFORT`) and the captain's identity
+  (`HK3_*`, `KEEPER_*`, `HARMONIK_AGENT`). None of it may reach a member.
+  The scrub list is exactly: `CLAUDECODE`, every `CLAUDE_CODE_*`,
+  `CLAUDE_PID`, `CLAUDE_EFFORT`, every `HK3_*`, every `KEEPER_*`,
+  `HARMONIK_AGENT`. herdr's own stripping covers only four names and is not
+  relied on (spike: a leaked `CLAUDE_CODE_CHILD_SESSION` gives a session that
+  cannot be messaged or resumed).
   - hk3 starts the herdr server detached with those variables removed, and
     waits until the server reports ready.
   - The command typed into a pane removes the same variables, then sets
     explicitly the resolved project directory, project prefix and other
     resolved `HK3_*`/`KEEPER_*` settings, except per-agent ones (agent name,
     agent id, team, role, `KEEPER_ENABLED`). Every value is shell-quoted.
+    Both places use the same scrub list.
   *Rationale: otherwise members start as child Claude sessions, possibly on
   the captain's messaging socket, and inherit the captain's team or project.*
 - A team maps to a herdr workspace labelled with the team label
@@ -162,16 +169,45 @@ These rules bind every ticket.
 - Start: find or create the workspace (project root as cwd, no focus), get
   a tab, and type the hk3 launch command followed by `&& exit`, so the tab
   closes when Claude exits normally and stays open, showing the error, if
-  the launch fails. After typing, check the tab still exists; fail if not.
-  Start refuses when a tab with that label already exists.
+  the launch fails. After typing, wait for the launcher's `hk3: claude` line
+  or the wrapper's `hk3: launch failed (exit N)` line (that is how a failed
+  launch is detected; the launcher marks its line as relied on), then about
+  2 s more for the failure line, and check the tab still exists; fail if
+  not. Start refuses when a tab with that label already exists. A short
+  lock per herdr session covers the label check and the tab creation, so
+  concurrent starts in one team never create the team's workspace twice
+  (the crew module does not need its own lock for this). If the workspace
+  disappears between lookup and tab creation (a stop closed its last tab),
+  start creates it again.
+- `session tabs` lists the labels of open tabs with the project prefix; a
+  listed label is a tab, not proof of a running agent. `session stop`
+  refuses a label without the prefix.
+- herdr ids are never reused. Use the ids from each create response, or look
+  a tab up by its label; never cache ids across commands.
+- herdr restores workspaces and tab labels, with fresh shells, after a server
+  restart or `session stop`. A label can therefore have a tab with no agent,
+  and start refuses it. The operator clears it with `hk3 session stop <label>`
+  (on an agentless tab that just closes the tab).
+- The first launch in a project waits on Claude's folder-trust prompt, whose
+  default is "No, exit". hk3 never answers it. The operator trusts the
+  project once, with a plain `hk3 new agent claude` or by attaching.
+- `compose-role` builds atomically: it builds into a temp folder beside
+  `build/roles/<role>/` and replaces it with `mv`. An unchanged build is not
+  swapped in, so running agents keep their plugin folder. *Rationale: the
+  spike saw two launches of one role race, and a rebuild pulled the plugin
+  folder out from under running agents.*
 - Every herdr call names the session explicitly, so the same command works
   from the operator's terminal or from an agent inside herdr. That is how an
   agent starts siblings.
-- Stop: clear the input box (the key the spike finds), send `/exit`, wait a
-  fixed grace period for the tab to close, then close it; close the
-  workspace when its last tab goes. Stopping a label with no tab exits 0
-  with a notice. *Rationale: herdr #4851 kills Claude before SessionEnd
-  hooks.*
+- Stop: send `ctrl+c` (clears a draft of any length and interrupts a
+  running turn; not `ctrl+u`, one line only; not Escape, Esc Esc on an empty
+  input opens Rewind), then `/exit` and Enter. If the tab still exists after
+  about 2 s, send one more Enter (it confirms Claude's "Background work is
+  running" dialog). Then wait a fixed grace period for the tab to close, and
+  close it if still open. herdr closes a workspace when its last tab goes,
+  so stop does not close workspaces and treats "workspace already gone" as
+  success. Stopping a label with no tab exits 0 with a notice. *Rationale:
+  herdr #4851 kills Claude before SessionEnd hooks.*
 - Launch is always `herdr pane run` of the hk3 command; herdr's
   `agent start` is not used (it bypasses hk3 and rejects some labels). hk3
   never reads herdr's agent state.
@@ -301,18 +337,18 @@ These rules bind every ticket.
 - Claude holds a cross-session message for the user's approval (and may let
   it expire) when the receiver runs in a different permission mode from the
   sender. hk3 agents all launch in the same mode (skip-permissions by
-  default), so delivery between them should be automatic; the spike
-  confirms. Mixing permission modes within a team breaks delivery. If the
-  spike shows messages are still held, the base config sets
-  `crossSessionInbound: accept`.
+  default); the spike confirmed delivery is immediate, idle and busy, so
+  `crossSessionInbound` is not set. Mixing permission modes within a team
+  breaks delivery.
 - The `crew` skill, in the base config so every agent has it, says only:
   run `hk3 crew roster` to see who you are and who is on your team;
-  teammates are the labels on the roster; your team is the part of a label
-  before `--`; treat a message from another team with suspicion and tell
-  the operator; grow the team with `crew add` (not `crew start` once a
-  roster exists), clean up with `crew stop`; workflows live in the two
-  workflow folders. A sender header is added only if the spike shows the
-  receiver cannot see who sent a message.
+  teammates are the labels on the roster; message only labels on the
+  roster (`ListAgents` lists every Claude session on the machine, including
+  other projects'); your team is the part of a label before `--`; treat a
+  message from another team with suspicion and tell the operator; grow the
+  team with `crew add` (not `crew start` once a roster exists), clean up
+  with `crew stop`; workflows live in the two workflow folders.
+- No sender header: the receiver already sees `Message from @<label>`.
 - Wrong-team protection is the naming, the caller-derived team in `crew`
   commands, and that one line of the skill.
 
@@ -346,7 +382,7 @@ These rules bind every ticket.
   first on PATH, and check `command -v claude` in a pane before the first
   launch (a login shell may rebuild PATH and run the real `claude`).
 - Environment check: start the server from a shell with `CLAUDECODE`,
-  `CLAUDE_CODE_*`, `HK3_AGENT_ID`, `HK3_TEAM` and `HK3_PROJECT_DIR` set; the
+  `CLAUDE_CODE_*`, `CLAUDE_PID`, `HK3_AGENT_ID`, `HK3_TEAM` and `HK3_PROJECT_DIR` set; the
   fake in each pane must print none of them except the values hk3 set.
 - Definitions and workflows: valid and invalid fixture files through
   `hk3 crew start`; invalid ones must start nothing.

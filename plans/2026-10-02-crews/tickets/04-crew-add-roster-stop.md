@@ -27,4 +27,4 @@ outside stops all and deletes the roster. Bare `crew stop` is refused.
 - [ ] The teams folder holds a `.gitignore` of `*` in a project initialized before this change
 - [ ] `crew roster` inside a session shows the caller's label and live tabs; a captain without a tab shows as not live
 - [ ] `crew stop tester` stops it and removes it from the roster; bare `crew stop` is refused; `crew stop --all` from the captain keeps the captain; `crew stop --all --team alpha` from outside stops all and deletes the roster, even with no live tabs
-- [ ] README.md (crew add, roster, stop; resuming a crashed member by hand), docs/configuration.md (teams folder), docs/architecture.md (roster, identity rules), docs/testing.md updated
+- [ ] README.md (crew add, roster, stop; resuming a crashed member by hand; projects running teams should set `{name}`-based `KEEPER_HANDOFF_PROMPT`/`KEEPER_STARTUP_PROMPT` naming `HANDOFF-{name}.md`, as omatic does, because the default prompts make every member write `HANDOFF.md`), docs/configuration.md (teams folder), docs/architecture.md (roster, identity rules), docs/testing.md updated

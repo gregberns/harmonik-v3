@@ -4,7 +4,7 @@ harmonik-v3 (`hk3`) launches Claude Code agent sessions inside other
 projects: role-scoped settings and skills, agent names, a status line, and
 keeper, a plugin that hands off and restarts a session at a token threshold.
 It is early and evolving in small steps. Bash only; needs `claude`, `yq`
-(mikefarah v4) and `jq`.
+(mikefarah v4) and `jq`; `hk3 session` also needs herdr.
 
 Documentation lives in `docs/`; start at [docs/README.md](docs/README.md).
 `README.md` is the user-facing quick start.

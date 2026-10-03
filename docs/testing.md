@@ -65,6 +65,121 @@ prints its arguments, `HK3_PROJECT_DIR` and `HK3_ROOT`. `hk3 echo a 'b c'`
 must pass both arguments and export both variables; `hk3 bogus` and
 `hk3 keeper` (no `main`) must print usage and exit 1.
 
+## Session module (herdr)
+
+Use a throwaway herdr session, `HK3_HERDR_SESSION=hk3test`, never the
+operator's `hk3`, and a scratch repo whose `.harmonik-v3/config.env` sets
+`HK3_PROJECT_PREFIX=oc`. Only `modules/session/herdr.sh` may run `herdr`;
+check with `grep -rnw herdr modules scripts lib harmonik-v3 | grep -v '^modules/session/herdr.sh:'`:
+every line it prints must be a comment or message text, never a command.
+
+**Fake claude.** It prints its working directory, arguments and
+`CLAUDE*`/`HK3_*`/`KEEPER_*`/`HARMONIK*` environment (also into
+`$FAKE_LOG/<label>.env`), then reads lines like Claude's input: `ctrl+c` is
+ignored, `/exit` exits. A label containing `stuck` ignores `/exit`; one
+containing `dialog` needs one more Enter after it (Claude's "Background work
+is running" dialog). One containing `crash` prints an error and exits 1 at
+once; one containing `quit` exits 0 at once.
+
+```sh
+cat > "$bin/claude" <<'EOF2'
+#!/bin/bash
+id="${HK3_AGENT_ID:-unnamed}"
+{ echo "cwd=$PWD"; printf 'arg %s\n' "$@"; env | grep -E '^(CLAUDE|HK3_|KEEPER_|HARMONIK)' | sort; } > "$FAKE_LOG/$id.env"
+cat "$FAKE_LOG/$id.env"
+case "$id" in
+  *crash*) echo "claude: error: crashed" >&2; exit 1 ;;
+  *quit*) exit 0 ;;
+esac
+trap 'echo ctrl+c >> "$FAKE_LOG/$id.keys"' INT
+while true; do
+  IFS= read -r line; rc=$?
+  [[ $rc -gt 128 ]] && continue; [[ $rc -ne 0 ]] && exit 0
+  echo "$line" >> "$FAKE_LOG/$id.keys"
+  [[ "$line" == /exit ]] || continue
+  case "$id" in
+    *stuck*) ;;
+    *dialog*) read -r _; echo enter >> "$FAKE_LOG/$id.keys"; exit 0 ;;
+    *) exit 0 ;;
+  esac
+done
+EOF2
+chmod +x "$bin/claude"
+```
+
+**Fake first on PATH in panes.** herdr panes run a login shell, which may
+rebuild PATH (a `~/.zprofile` that prepends `~/.local/bin` puts the real
+`claude` first). For zsh, start the server with a `ZDOTDIR` whose
+`.zprofile` puts the fake first:
+
+```sh
+mkdir -p "$zdot"; printf 'export PATH=%q:$PATH\n' "$bin" > "$zdot/.zprofile"
+export ZDOTDIR="$zdot" PATH="$bin:$PATH" FAKE_LOG="$log" HK3_HERDR_SESSION=hk3test
+```
+
+**Environment check (server).** From that shell, which inside Claude Code
+already has `CLAUDECODE` and `CLAUDE_CODE_*`, also export `HK3_AGENT_ID`,
+`HK3_TEAM`, `HK3_AGENT_NAME`, `HK3_ROLE`, `KEEPER_ENABLED`,
+`HARMONIK_AGENT`, `HK3_PROJECT_DIR=<scratch repo>` and
+`KEEPER_RESTART_TOKEN_COUNT=777`, then run the first
+`hk3 session start --team alpha --name builder` (it starts the server). The
+fake's output must show the project root as cwd, `HK3_TEAM=alpha`,
+`HK3_AGENT_ID=oc-alpha--builder`, `KEEPER_RESTART_TOKEN_COUNT=777`, and no
+other leaked value: no `CLAUDECODE`, no `CLAUDE_CODE_*` except
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`, no `CLAUDE_PID`. Then, in a pane of
+a scratch workspace, `command -v claude` must print the fake and
+`env | grep -cE '^(CLAUDE|HK3_|KEEPER_|HARMONIK)'` must print 0.
+
+**Environment check (typed launch).** Make the `.zprofile` also export the
+scrub list (`CLAUDECODE=1 CLAUDE_CODE_CHILD_SESSION=1 CLAUDE_PID=4242
+HK3_TEAM=leak HK3_AGENT_ID=leak KEEPER_ENABLED=leak
+KEEPER_RESTART_TOKEN_COUNT=999 HARMONIK_AGENT=leak ...`), so every new tab's
+shell has them. A start must reach the fake with none of them: with
+`KEEPER_RESTART_TOKEN_COUNT=555` in the calling shell the member gets 555,
+without it 200000, never 999.
+
+**Behavior.**
+
+- `start --team alpha --name builder`: workspace `oc-alpha` with one tab
+  `oc-alpha--builder`; a second member adds a tab to it; solo `--name bravo`
+  gets workspace `oc-bravo`; a repeated label is refused; `session tabs`
+  lists the labels.
+- `--role nosuchrole`: exit 1; the tab stays open showing the error.
+- `--name crash` (claude fails right after the launcher's last line):
+  start exits 1 with `launch failed`, the tab stays open. `--name quit`
+  (claude exits 0 at once): start exits 1 with "its tab closed right after
+  the launch".
+- `session tabs` lists only labels with the prefix (not a tab made by hand
+  with `herdr workspace create`); `stop` of a label without the prefix
+  exits 1 and touches nothing.
+- Stop the last member of a team in the background and 0.3 s later start
+  another member of it: the start succeeds (it recreates the workspace).
+- Without a prefix every `session` command is refused.
+- `stop` on a normal, a `dialog` and a `stuck` member: `$FAKE_LOG/<label>.keys`
+  shows `ctrl+c` and `/exit` (plus the extra Enter); the `stuck` one is
+  closed after the grace period; a workspace whose last tab went is gone.
+  An unknown label exits 0 with a notice.
+- `herdr session stop hk3test`, then any start: the restored tabs have no
+  agent and start refuses their labels; `stop <label>` closes one and a
+  start of it then succeeds.
+- Four starts of one role at once (`&` and `wait`), in one team, after
+  deleting `.harmonik-v3/build` and again after changing
+  `.harmonik-v3/config.yaml`: all launch, into one workspace.
+- From a shell in a pane of `hk3test`,
+  `HK3_HERDR_SESSION=hk3test hk3 session start --team alpha --name sib`
+  adds tab `oc-alpha--sib` to workspace `oc-alpha`.
+
+**Live.** Restart `hk3test` without the fake (and without `ZDOTDIR`), start
+one real agent with `hk3 session start --name live`, answer the trust
+prompt in the pane (`herdr --session hk3test pane send-keys <pane> down
+enter`), check the badge `▶ oc-live` with `pane read`, type a draft, then
+`hk3 session stop oc-live`: the tab closes within about 2 s, and a
+SessionEnd hook in the scratch project's `.claude/settings.json` logs
+`prompt_input_exit`.
+
+Clean up: `herdr session stop hk3test`, `herdr session delete hk3test`,
+remove the scratch folders.
+
 ## Live session
 
 Some behavior shows only in an interactive session: the status line,

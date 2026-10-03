@@ -65,6 +65,8 @@ Modules:
   keeper
       Hands off and restarts a session at a token threshold. No commands; its
       plugin loads into every agent launch.
+  session start|stop|tabs
+      Start and stop agents in herdr (hk3 session --help).
 
 Project: $PROJECT_DIR
 Sessions run in the project with keeper (the hk3-keeper plugin) loaded for
@@ -164,6 +166,8 @@ run_claude() {
 
   echo "hk3: project $PROJECT_DIR" >&2
   echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
+  # hk3 session start waits for this line ("hk3: claude ...") to know the
+  # launch reached claude; keep its start unchanged.
   echo "hk3: claude ${flags[*]} $*" >&2
   # Sessions are stored per directory; always launch from the project root so
   # resume finds them.

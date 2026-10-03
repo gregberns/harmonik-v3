@@ -15,6 +15,10 @@
 #   plugin/                    a plugin holding the role's skills, for
 #                              `claude --plugin-dir`, copied from skills/
 #
+# The build goes into a temp folder beside <out-dir>, which then replaces
+# <out-dir> with mv (or is dropped when <out-dir> already has the same
+# content), so launches of one role never see a half-built folder.
+#
 # Requires yq (mikefarah, v4) and jq.
 set -euo pipefail
 
@@ -59,7 +63,11 @@ while IFS= read -r skill; do
 done < <(yq '.skills[]' <<<"$merged")
 ((${#missing[@]} == 0)) || die "role '$role' lists skills not in $SKILLS_DIR: ${missing[*]}"
 
-rm -rf "$out"
+final="$out"
+mkdir -p "$(dirname "$final")"
+out="$(mktemp -d "$(dirname "$final")/.$(basename "$final").XXXXXX")"
+trap 'rm -rf "$out"' EXIT
+chmod 755 "$out"
 mkdir -p "$out/plugin/.claude-plugin" "$out/plugin/skills"
 
 printf '%s\n' "$merged" > "$out/role.yaml"
@@ -76,4 +84,20 @@ while IFS= read -r skill; do
   cp -R "$SKILLS_DIR/$skill" "$out/plugin/skills/$skill"
 done < <(yq '.skills[]' <<<"$merged")
 
-echo "$out"
+# Swap the new build in. An unchanged build is dropped, so the folder that
+# running agents use stays in place. If a concurrent build of the role puts
+# its folder in place between the two mv calls, ours is dropped (both have
+# the same content): mv then fails, or moves ours inside theirs.
+if [[ -d "$final" ]] && diff -r "$out" "$final" >/dev/null 2>&1; then
+  rm -rf "$out"
+else
+  old="$(mktemp -u "$(dirname "$final")/.$(basename "$final").old.XXXXXX")"
+  mv "$final" "$old" 2>/dev/null || true
+  if ! mv "$out" "$final" 2>/dev/null; then
+    [[ -d "$final" ]] || die "could not move the build into $final"
+    rm -rf "$out"
+  fi
+  rm -rf "$final/$(basename "$out")" "$old"
+fi
+trap - EXIT
+echo "$final"
