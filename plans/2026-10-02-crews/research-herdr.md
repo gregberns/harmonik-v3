@@ -35,3 +35,11 @@ Gathered 2026-10-02 by a research agent; herdr 0.9.3 installed via `brew install
 ## Unverified
 - `agent start --kind claude -- --name <label>` passthrough with hk3's launch; vs. `pane run "hk3 new agent claude ..."`.
 - Resource use with ~10 Claude panes; socket API stability across pre-1.0 versions.
+
+## Spike results (2026-10-02, ticket 01)
+Full evidence: [spike-results.md](spike-results.md). Overall: **go**.
+- Launch PASS: `pane run` of the hk3 command in two tabs of one workspace; tab labels stay set while Claude changes the terminal title. First launch in a folder shows a trust prompt with "No, exit" preselected (answered with `send-keys down enter`).
+- Environment PASS: herdr 0.9.3 itself strips only `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_TOKEN`; other `CLAUDE_CODE_*`, `CLAUDE_PID`, `CLAUDE_EFFORT`, `HK3_*`, `KEEPER_*`, `HARMONIK_AGENT` leak into panes. A server started with them removed gives clean panes. A leaked `CLAUDE_CODE_CHILD_SESSION` makes a child session (no transcript, not in `ListAgents`).
+- Exit PASS: the input-clear key is `ctrl+c`; `/exit` mid-turn or with background tasks shows a "Background work is running" dialog that needs one more Enter. `&& exit` closes the tab within 1-2 s; a failed launch leaves the tab open with the error.
+- Siblings PASS: from inside an agent's pane, `herdr --session <s> tab create` plus `pane run` start a third agent.
+- Also seen: a workspace closes on its own with its last tab; ids are never reused; workspaces and tab labels are restored after a server restart; parallel launches of one role race in `compose-role`.
