@@ -106,8 +106,59 @@ Two things to know:
 
 ## Teams
 
-`hk3 crew` grows a team of agents in herdr and keeps a roster of it. From
-inside an agent (it runs these in its own Bash tool), the team is always the
+`hk3 crew` starts and grows a team of agents in herdr and keeps a roster of
+it.
+
+### Start a team from a crew definition
+
+```sh
+hk3 crew start feature --team alpha                  # from your terminal: the crew definition "feature" as team alpha
+hk3 crew start ./crews/bugfix.yaml --team bravo      # a one-off definition, by path
+hk3 crew start feature                               # from inside agent oc-alpha: you take the lead slot
+```
+
+A crew definition is a YAML file listing the members; the first is the lead.
+hk3 ships one, `feature`:
+
+```yaml
+description: Plan, build, review and test a feature.
+workflow: plan-build-review        # optional: a workflow name
+members:
+  - role: captain                  # the lead: oc-alpha
+  - role: planner                  # oc-alpha--planner
+  - role: reviewer
+    name: plan-reviewer            # oc-alpha--plan-reviewer
+    responsibility: Reviews plans before building starts.
+  - role: builder                  # add count: 2 for builder and builder-2
+  - role: reviewer
+  - role: tester
+```
+
+`crew start feature --team alpha` starts the lead as `oc-alpha` (its own
+agent, named after the team) and the rest as `oc-alpha--<member>`, all in
+herdr workspace `oc-alpha`, and writes the roster first so every member
+sees the whole team. Run from inside the team's lead agent (`oc-alpha` itself, not a
+member such as `oc-alpha--planner`), that agent takes the lead slot under
+its own role. hk3 looks a name up in your project's
+`.harmonik-v3/crews/`, then in its own `crews/`, so a project file overrides
+one of the same name.
+
+hk3 checks the definition (known roles, names, counts, its workflow) and
+starts nothing if it is wrong. It refuses a team that already has a roster
+(grow it with `crew add`, or clear a stale one with
+`crew stop --all --team <team>`) and any label that is already a live tab.
+If a member fails to start, hk3 stops there and says which members started;
+clean up with `crew stop --all`.
+
+**Workflows** are YAML files the agents read and follow, found in your
+project's `.harmonik-v3/workflows/`, then hk3's `workflows/`. hk3 checks only
+that one has a `description`; every other key is up to you and your agents.
+The roster records the workflow's name and path. hk3 ships
+`plan-build-review`.
+
+### Grow and shrink a team
+
+From inside an agent (it runs these in its own Bash tool), the team is always the
 agent's own:
 
 ```sh
@@ -163,6 +214,7 @@ agent is `general`.
 | Role | Skills (plus `handoff`) |
 |---|---|
 | general (default) | none |
+| captain | none (leads a team; the lead of the `feature` crew) |
 | planner | task-breakdown, risk-assessment |
 | reviewer | review-checklist, review-report |
 | builder | incremental-build, commit-hygiene |

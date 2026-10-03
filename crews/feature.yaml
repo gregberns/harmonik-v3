@@ -1,0 +1,16 @@
+# Example crew definition (hk3 crew start feature --team <team>).
+# The first member is the lead: it takes the team label (oc-alpha) and has
+# no name or count. Every other member is <prefix>-<team>--<name>; name
+# defaults to the role, count to 1 (count: 2 gives builder, builder-2), and
+# responsibility (one line) to the role's description.
+description: Plan, build, review and test a feature.
+workflow: plan-build-review
+members:
+  - role: captain
+  - role: planner
+  - role: reviewer
+    name: plan-reviewer
+    responsibility: Reviews plans before building starts.
+  - role: builder
+  - role: reviewer
+  - role: tester

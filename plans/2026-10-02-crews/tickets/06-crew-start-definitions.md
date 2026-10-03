@@ -23,13 +23,13 @@ example workflow it references.
 
 **Blocked by:** 04 (crew add, roster, stop)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] With the fake `claude` and `hk3test`: `crew start <example> --team alpha` starts `oc-alpha` (role captain), `oc-alpha--planner`, `--plan-reviewer`, `--builder`, `--reviewer`, `--tester` in workspace `oc-alpha`; the roster lists them with responsibilities and the workflow path
-- [ ] `count: 2` gives `builder` and `builder-2`
-- [ ] Each invalid fixture (unknown role, duplicate resulting names, `--` in a name, bad count, not YAML, missing workflow, workflow without a description) is refused and starts nothing
-- [ ] Refused with a pointer: team already has a roster; team label `oc-alpha` is a live tab; a member label is live
-- [ ] A project definition overrides a repo definition of the same name; a path argument works
-- [ ] From an environment set up like `oc-alpha` (role general), `crew start <example>` records `oc-alpha` as general in the lead slot and starts the other five
-- [ ] A start that fails at the third member leaves two started and says so
-- [ ] README.md (crew start, definitions, workflows, captain role), docs/configuration.md (definition and workflow format, lookup order), docs/testing.md updated
+- [x] With the fake `claude` and `hk3test`: `crew start <example> --team alpha` starts `oc-alpha` (role captain), `oc-alpha--planner`, `--plan-reviewer`, `--builder`, `--reviewer`, `--tester` in workspace `oc-alpha`; the roster lists them with responsibilities and the workflow path
+- [x] `count: 2` gives `builder` and `builder-2`
+- [x] Each invalid fixture (unknown role, duplicate resulting names, `--` in a name, bad count, not YAML, missing workflow, workflow without a description) is refused and starts nothing
+- [x] Refused with a pointer: team already has a roster; team label `oc-alpha` is a live tab; a member label is live
+- [x] A project definition overrides a repo definition of the same name; a path argument works
+- [x] From an environment set up like `oc-alpha` (role general), `crew start <example>` records `oc-alpha` as general in the lead slot and starts the other five
+- [x] A start that fails at the third member leaves two started and says so
+- [x] README.md (crew start, definitions, workflows, captain role), docs/configuration.md (definition and workflow format, lookup order), docs/testing.md updated

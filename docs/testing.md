@@ -227,6 +227,50 @@ Code the shell already carries `CLAUDECODE` and `CLAUDE_CODE_*`):
   member stays on the roster, the message points to `crew stop`.
 - No herdr call outside the adapter (the grep in the session section).
 
+Crew start (definitions and workflows), same setup:
+
+- `crew start feature --team alpha`: starts `oc-alpha` (role captain, solo,
+  its own launch) and `oc-alpha--planner`, `--plan-reviewer`, `--builder`,
+  `--reviewer`, `--tester`, all in workspace `oc-alpha` (herdr
+  `workspace list` shows one workspace with six tabs). `teams/alpha.yaml`
+  has `crew: feature`, `workflow` with the absolute path of
+  `workflows/plan-build-review.yaml`, and every member with its
+  responsibility; `crew roster --team alpha` prints them all live, and
+  `$FAKE_LOG/oc-alpha--planner.roster` already lists all six.
+- Refused with a pointer, nothing started: run it again (roster exists:
+  `crew add` / `crew stop --all`); move the roster aside (team label
+  `oc-alpha` is a live tab: start from inside it or another team name);
+  then `session stop oc-alpha` (a member label is a live tab).
+- Invalid fixture files, each refused with `.harmonik-v3/teams/` unchanged
+  and no tab started (`session tabs` empty): unknown role; two members with
+  one resulting name (`builder` with `count: 2` plus a `name: builder-2`,
+  and two plain `builder`s); `name: a--b`; `count` of `0`, `two`, `1.5`;
+  not YAML (`members: [` unclosed); a `workflow` that does not exist; a
+  workflow file without `description`; no `description`; a lead with
+  `count: 2`; a two-line responsibility; a file with two YAML documents.
+- Lookup: a project `.harmonik-v3/crews/feature.yaml` (lead with a
+  responsibility, `builder` with `count: 2`) wins over the repo's:
+  `crew start feature --team bravo` starts `oc-bravo`, `oc-bravo--builder`,
+  `oc-bravo--builder-2`. A path works, absolute or relative to the current
+  directory (`cd` elsewhere, `crew start pair.yaml --team charlie`). A
+  project `.harmonik-v3/workflows/plan-build-review.yaml` wins over the
+  repo's (the roster's path shows it).
+- As captain `oc-echo` (`HK3_AGENT_ID=oc-echo HK3_AGENT_NAME=echo
+  HK3_ROLE=general`): `crew start <def>` records `oc-echo` as `general` in
+  the lead slot (with the slot's responsibility only if the definition
+  gives one) and starts the rest, not the lead; `--team foxtrot` is refused;
+  with a member label already a tab it is refused; after `crew add` it is
+  refused (roster exists). A member caller (`HK3_AGENT_ID=oc-golf--builder
+  HK3_TEAM=golf HK3_AGENT_NAME=golf--builder HK3_ROLE=builder`) is refused
+  (only the team lead can start a crew from inside a session), nothing
+  started.
+- A definition whose third member is `name: crash`: `oc-delta` and
+  `oc-delta--planner` start, then crew start exits 1 printing
+  `started: oc-delta oc-delta--planner` and `not started:` the rest; the
+  roster lists all four and `crew stop --all --team delta` cleans up.
+- `crew add` and `crew stop` on a team started from a definition keep
+  `crew` and `workflow` in the roster.
+
 **Live.** In a fresh `hk3test` without the fake, run
 `HK3_AGENT_ID=oc-live HK3_AGENT_NAME=live HK3_ROLE=general hk3 crew add tester`,
 answer the trust prompt (`herdr --session hk3test pane send-keys <pane> down enter`)

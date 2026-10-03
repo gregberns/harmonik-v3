@@ -12,7 +12,8 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 | `modules/<name>/` | One module per concern. `main`, when present and executable, is its command entrypoint. |
 | `modules/keeper/` | Keeper: `plugin/` hands off and restarts a session at a token threshold; `defaults.sh` holds the `KEEPER_*` defaults. No commands. |
 | `modules/session/` | `hk3 session start/stop/tabs`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
-| `modules/crew/` | `hk3 crew add/roster/stop`: teams and their rosters, through `hk3 session`. |
+| `modules/crew/` | `hk3 crew start/add/roster/stop`: teams, crew definitions and rosters, through `hk3 session`. |
+| `crews/`, `workflows/` | Example crew definition (`feature`) and workflow (`plan-build-review`); a project's `.harmonik-v3/crews/` and `workflows/` override them by name. |
 | `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin. |
 | `scripts/statusline` | Claude status line: agent badge and role, then the project's own status line. |
 | `config/base.yaml`, `config/roles/*.yaml` | Role definitions. |
@@ -105,6 +106,7 @@ prefix, so it never touches the operator's own tabs.
 
 ## Crew module (teams and rosters)
 
+`hk3 crew start <crew> [--team <team>]` starts a team from a crew definition,
 `hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`
 adds one member to a team, `hk3 crew roster [--team <team>]` prints the
 team, and `hk3 crew stop <member>... | --all [--team <team>]` removes
@@ -123,7 +125,8 @@ script's absolute path) and learns which labels have a tab from
   An agent cannot stop itself (it ends with `/exit`). The session module's
   clean environment keeps a member from inheriting its captain's identity.
 - **Roster.** One file per team, `<project>/.harmonik-v3/teams/<team>.yaml`:
-  `team`, `label` (the team label) and `members`, each with `label`, `role`
+  `team`, `label` (the team label), from `crew start` also `crew` and
+  `workflow` (`name`, `path`), and `members`, each with `label`, `role`
   and `responsibility`. hk3 rewrites it whole (temp file, then `mv`) on every
   change. The teams folder gets a `.gitignore` of `*` when hk3 creates it.
 - **Add.** The member name defaults to the role, with the next free number
@@ -136,8 +139,24 @@ script's absolute path) and learns which labels have a tab from
   finds itself. Its first prompt, from one fixed template, gives its label,
   role and team and says to run `hk3 crew roster`. A failed start leaves the
   member on the roster with a pointer to `crew stop`; there is no rollback.
-- **Roster command.** Prints the members with which have a live tab (from
-  `hk3 session tabs`) and, inside a session, the caller's own label. Live
+- **Start.** A crew definition (format and lookup in
+  [configuration.md](configuration.md#crew-definitions-and-workflows)) and
+  its workflow are checked structurally first: YAML, known roles, valid and
+  unique resulting names, whole counts, one-line responsibilities, a
+  workflow that exists and has a `description`. hk3 reads nothing else from
+  a workflow. Then start refuses a team with a roster, a team label that is
+  a live tab (outside a session), and any member label that is a live tab.
+  Under the team's lock it writes the whole roster (with `crew` and the
+  workflow's name and absolute path), then starts the members in order.
+  The lead (first) slot is the team label: outside a session hk3 starts it
+  as a solo agent named after the team (`session start --name alpha`, so
+  workspace `oc-alpha`) with the slot's role; inside a session only the
+  team-label agent may run it (a member caller is refused); it fills it and is recorded under its actual role, with the slot's
+  responsibility only if the definition gives one. A failed start stops
+  there and prints who started and who did not; every member stays on the
+  roster and `crew stop --all` cleans up. No rollback.
+- **Roster command.** Prints the crew and workflow (if any), the members
+  with which have a live tab (from `hk3 session tabs`) and, inside a session, the caller's own label. Live
   means a herdr tab only: a captain in a plain terminal shows as not live.
 - **Stop.** Each named member (member name or full label, which must be on
   the roster) is stopped with `hk3 session stop` and then taken off the

@@ -67,8 +67,9 @@ Modules:
       plugin loads into every agent launch.
   session start|stop|tabs
       Start and stop agents in herdr (hk3 session --help).
-  crew add|roster|stop
-      Teams: add and stop members, and the team roster (hk3 crew --help).
+  crew start|add|roster|stop
+      Teams: start one from a crew definition, add and stop members, and the
+      team roster (hk3 crew --help).
 
 Project: $PROJECT_DIR
 Sessions run in the project with keeper (the hk3-keeper plugin) loaded for

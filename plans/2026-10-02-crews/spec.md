@@ -276,7 +276,10 @@ These rules bind every ticket.
 
   `role` is required and must be a known role; `name` defaults to the role;
   `count` defaults to 1; `responsibility` (one line) defaults to the role's
-  description. Structural checks only.
+  description. Structural checks only. The lead (first) member may not have
+  a `name` or a `count` other than 1, since it takes the team label, and the
+  file must hold one YAML document (added during ticket 06, pending the
+  operator's confirmation).
 - Lookup by name: the project's `.harmonik-v3/crews/`, then the hk3 repo's
   crews folder. An argument that is a path is used as a file.
 - `hk3 crew start <crew> --team <team>` (operator, outside a session):
@@ -287,7 +290,8 @@ These rules bind every ticket.
   start every member. The lead (first) slot starts as `oc-alpha`, with the
   slot's role; the others as `oc-alpha--<member>`.
 - From inside an hk3 session, `hk3 crew start <crew>` uses the caller's
-  team. The caller fills the lead (first) slot and is recorded with its
+  team. Only the team-label agent (`oc-alpha`) may run it; a member caller
+  is refused (added during ticket 06, per decision 3). The caller fills the lead (first) slot and is recorded with its
   actual role; the slot's `responsibility` is used only if the definition
   gives one. The rest are started.
 - `hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`

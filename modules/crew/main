@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# crew — teams of hk3 agents: add and stop members, and the roster that lists
-# them. Agents start and stop only through `hk3 session`; this module never
-# calls herdr.
+# crew — teams of hk3 agents: start a team from a crew definition, add and
+# stop members, and the roster that lists them. Agents start and stop only
+# through `hk3 session`; this module never calls herdr.
 #
 # Usage (through the router, which exports HK3_ROOT and HK3_PROJECT_DIR):
+#   hk3 crew start <crew> [--team <team>]
 #   hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]
 #   hk3 crew roster [--team <team>]
 #   hk3 crew stop <member>... | --all [--team <team>]
@@ -17,6 +18,9 @@ source "$HK3_ROOT/lib/hk3.sh"
 
 HK3="$ROOT/harmonik-v3"
 TEAMS_DIR="$PROJECT_CONF/teams"
+# Crew definitions and workflows: the project's folder first, then hk3's.
+CREW_DIRS=("$PROJECT_CONF/crews" "$ROOT/crews")
+WORKFLOW_DIRS=("$PROJECT_CONF/workflows" "$ROOT/workflows")
 # Seconds add and stop wait for another crew command on the same team.
 LOCK_WAIT=120
 
@@ -25,6 +29,16 @@ usage() {
 Usage: hk3 crew <command>
 
 Commands:
+  start <crew> [--team <team>]
+      Start a team from a crew definition: <crew> is a name, looked up in
+      $PROJECT_CONF/crews/ then $ROOT/crews/, or a path
+      to a .yaml file. The first member is the lead and takes the team label
+      (<prefix>-<team>); the others are <prefix>-<team>--<member>. Inside
+      an hk3 session the team is yours and you fill the lead slot (only
+      the team label agent, not a member, may do this); outside
+      one, --team is required. Refused if the team has a roster or a label
+      is already a live tab. The workflow it names is looked up in
+      $PROJECT_CONF/workflows/ then $ROOT/workflows/.
   add <role> [--name <member>] [--responsibility <text>] [--team <team>]
       Add a member to the team and start it (hk3 session start). The name
       defaults to the role, with the next free number when taken (builder,
@@ -77,8 +91,9 @@ resolve_team() {
 }
 
 # --- Roster ---------------------------------------------------------------------
-# <team>.yaml: team, label (the team label) and members (label, role,
-# responsibility). Rewritten whole on every change, under the team's lock.
+# <team>.yaml: team, label (the team label), from crew start also crew and
+# workflow (name, path), and members (label, role, responsibility).
+# Rewritten whole on every change, under the team's lock.
 
 # ensure_teams_dir: the teams folder, kept out of git.
 ensure_teams_dir() {
@@ -139,9 +154,10 @@ roster_remove() {
 
 role_file() { echo "$ROOT/config/roles/$1.yaml"; }
 
+# check_role <role> [<message prefix>]
 check_role() {
   [[ "$1" =~ ^[A-Za-z0-9_-]+$ && -f "$(role_file "$1")" ]] ||
-    die "unknown role: $1 (hk3 list roles)"
+    die "${2:-}unknown role: $1 (hk3 list roles)"
 }
 
 role_description() {
@@ -158,7 +174,200 @@ first_prompt() {
   echo "You are $1, role $2, on team $TEAM (team label $TEAM_LABEL). Run \`hk3 crew roster\` to see your team."
 }
 
+# --- Crew definitions and workflows ---------------------------------------------
+# Structural checks only: hk3 never interprets a workflow, and a definition
+# says only who starts.
+
+# find_named <kind> <name> <dir>...: the first <dir>/<name>.yaml.
+find_named() {
+  local kind="$1" name="$2" dir
+  shift 2
+  [[ "$name" =~ ^[A-Za-z0-9_-]+$ ]] || die "bad $kind name: $name"
+  for dir in "$@"; do
+    [[ -f "$dir/$name.yaml" ]] && { echo "$dir/$name.yaml"; return 0; }
+  done
+  die "no $kind named $name (looked for $name.yaml in: $*)"
+}
+
+# yaml_json <file>: the file as JSON, or die if it is not one YAML document.
+yaml_json() {
+  [[ -f "$1" && -r "$1" ]] || die "no such file: $1"
+  local json
+  json="$(yq -o=json '.' "$1" 2>/dev/null)" || die "$1 is not valid YAML"
+  [[ "$(jq -s length <<<"$json")" == 1 ]] || die "$1 must hold exactly one YAML document"
+  echo "$json"
+}
+
+# The definition's first error, or nothing.
+DEF_CHECK='
+def one_line: type == "string" and (test("[\n\r\u001f]") | not);
+def member_error($i):
+  "member \($i + 1)" as $m
+  | if type != "object" then "\($m) is not a mapping"
+    elif (.role | type) != "string" or .role == "" then "\($m) needs a role"
+    elif has("name") and ((.name | type) != "string" or .name == "") then "\($m): name must be text"
+    elif has("count") and ((.count | type) != "number" or .count != (.count | floor) or .count < 1) then "\($m): count must be a whole number of at least 1"
+    elif has("responsibility") and ((.responsibility | one_line) | not) then "\($m): responsibility must be one line of text"
+    elif $i == 0 and (has("name") or (has("count") and .count != 1)) then "member 1 is the lead: it takes the team label, so it has no name, and no count other than 1"
+    else empty end;
+if type != "object" then "is not a YAML mapping"
+elif (.description | type) != "string" or .description == "" then "needs a description"
+elif has("workflow") and ((.workflow | type) != "string" or .workflow == "") then "workflow must be a workflow name"
+elif (.members | type) != "array" or (.members | length) == 0 then "needs a members list"
+else [.members | to_entries[] | .key as $i | .value | member_error($i)] | .[0] // empty
+end'
+
+# One line per resulting member: role, name (empty for the lead), 1 if the
+# definition gives a responsibility, and the responsibility; separated by \x1f.
+DEF_MEMBERS='
+.members | to_entries[] | .key as $i | .value
+| (.name // .role) as $base
+| range(1; (.count // 1) + 1) as $n
+| [.role, (if $i == 0 then "" elif $n == 1 then $base else "\($base)-\($n)" end),
+   (if has("responsibility") then "1" else "0" end), (.responsibility // "")]
+| join("\u001f")'
+
+# load_crew <name or path>: check the definition and its workflow and set
+# CREW_NAME, CREW_FILE, WORKFLOW_NAME, WORKFLOW_FILE (empty without one) and,
+# per resulting member (the lead first), M_ROLE, M_NAME, M_HAS_RESP, M_RESP.
+load_crew() {
+  if [[ "$1" == */* || "$1" == *.yaml || "$1" == *.yml ]]; then
+    CREW_FILE="$1"
+  else
+    CREW_FILE="$(find_named "crew definition" "$1" "${CREW_DIRS[@]}")"
+  fi
+  CREW_NAME="$(basename "$CREW_FILE")"
+  CREW_NAME="${CREW_NAME%.y*ml}"
+  local json err
+  json="$(yaml_json "$CREW_FILE")"
+  err="$(jq -r "$DEF_CHECK" <<<"$json")"
+  [[ -z "$err" ]] || die "crew definition $CREW_FILE: $err"
+
+  M_ROLE=() M_NAME=() M_HAS_RESP=() M_RESP=()
+  local role name has resp
+  while IFS=$'\x1f' read -r role name has resp; do
+    M_ROLE+=("$role") M_NAME+=("$name") M_HAS_RESP+=("$has") M_RESP+=("$resp")
+  done < <(jq -r "$DEF_MEMBERS" <<<"$json")
+  local i seen=" "
+  for i in "${!M_ROLE[@]}"; do
+    check_role "${M_ROLE[$i]}" "crew definition $CREW_FILE: "
+    [[ "$i" == 0 ]] && continue
+    [[ -n "${M_NAME[$i]}" ]] || die "crew definition $CREW_FILE: member $((i + 1)) has an empty name"
+    check_part "member name in $CREW_FILE" "${M_NAME[$i]}"
+    [[ "$seen" != *" ${M_NAME[$i]} "* ]] ||
+      die "crew definition $CREW_FILE: two members are named ${M_NAME[$i]} (give one a name, or use count)"
+    seen+="${M_NAME[$i]} "
+  done
+
+  WORKFLOW_NAME="$(jq -r '.workflow // ""' <<<"$json")"
+  WORKFLOW_FILE=""
+  [[ -n "$WORKFLOW_NAME" ]] || return 0
+  WORKFLOW_FILE="$(find_named workflow "$WORKFLOW_NAME" "${WORKFLOW_DIRS[@]}")"
+  json="$(yaml_json "$WORKFLOW_FILE")"
+  jq -e 'type == "object" and (.description | type) == "string" and .description != ""' <<<"$json" >/dev/null ||
+    die "workflow $WORKFLOW_FILE needs a description"
+}
+
+# roster_create <lead label> <lead role> <lead responsibility>: the roster of
+# a team started from a definition, with every member, written before any
+# starts so each member's first look finds the whole team.
+roster_create() {
+  local members i label resp
+  members="$(jq -n --arg l "$1" --arg r "$2" --arg s "$3" '[{label: $l, role: $r, responsibility: $s}]')"
+  for i in "${!M_ROLE[@]}"; do
+    [[ "$i" == 0 ]] && continue
+    label="$TEAM_LABEL--${M_NAME[$i]}"
+    resp="${M_RESP[$i]}"
+    [[ "${M_HAS_RESP[$i]}" == 1 ]] || resp="$(role_description "${M_ROLE[$i]}")"
+    members="$(jq --arg l "$label" --arg r "${M_ROLE[$i]}" --arg s "$resp" '. + [{label: $l, role: $r, responsibility: $s}]' <<<"$members")"
+  done
+  local tmp="$ROSTER.tmp.$$"
+  jq -n --arg t "$TEAM" --arg tl "$TEAM_LABEL" --arg c "$CREW_NAME" \
+    --arg wn "$WORKFLOW_NAME" --arg wp "$WORKFLOW_FILE" --argjson m "$members" \
+    '{team: $t, label: $tl, crew: $c} + (if $wn == "" then {} else {workflow: {name: $wn, path: $wp}} end) + {members: $m}' |
+    yq -p=json -o=yaml '.' > "$tmp"
+  mv "$tmp" "$ROSTER"
+}
+
 # --- Commands -------------------------------------------------------------------
+
+cmd_start() {
+  local crew="" given_team=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; given_team="$2"; shift 2 ;;
+      -*) die "unknown option: $1" ;;
+      *) [[ -z "$crew" ]] || die "unexpected argument: $1"; crew="$1"; shift ;;
+    esac
+  done
+  [[ -n "$crew" ]] || die "usage: hk3 crew start <crew> [--team <team>]"
+  resolve_team "$given_team"
+  load_crew "$crew"
+  # An absolute path, so the roster points at the file from anywhere.
+  [[ -z "$WORKFLOW_FILE" ]] || WORKFLOW_FILE="$(cd "$(dirname "$WORKFLOW_FILE")" && pwd)/$(basename "$WORKFLOW_FILE")"
+
+  # Inside a session --all keeps the caller and the roster; only a stop from
+  # outside deletes a stale roster.
+  local stale="team $TEAM already has a roster ($ROSTER); grow it with hk3 crew add, or if it is stale clear it from outside a session with hk3 crew stop --all --team $TEAM"
+  local cleanup="hk3 crew stop --all --team $TEAM"
+  in_session && cleanup="hk3 crew stop --all"
+  [[ ! -f "$ROSTER" ]] || die "$stale"
+  # The lead is always the team label itself (spec decision 3), so from
+  # inside a session only that agent can take the lead slot.
+  if in_session && [[ "$HK3_AGENT_ID" != "$TEAM_LABEL" ]]; then
+    die "only the team lead ($TEAM_LABEL) can start a crew from inside a session; you are $HK3_AGENT_ID. Ask the lead, or run it from outside a session with --team $TEAM"
+  fi
+  local tabs i label
+  tabs=" $(live_tabs | tr '\n' ' ') "
+  if ! in_session; then
+    [[ "$tabs" != *" $TEAM_LABEL "* ]] ||
+      die "$TEAM_LABEL is a live tab; to put that agent in the lead slot, run hk3 crew start $crew from inside it, or pick another team name"
+  fi
+  for i in "${!M_ROLE[@]}"; do
+    [[ "$i" == 0 ]] && continue
+    label="$TEAM_LABEL--${M_NAME[$i]}"
+    [[ "$tabs" != *" $label "* ]] ||
+      die "$label is a live tab; stop it first (hk3 session stop $label) or pick another team name"
+  done
+
+  # The lead slot: outside a session an agent named after the team, with the
+  # slot's role; inside one the caller, under its actual role.
+  local lead_label="$TEAM_LABEL" lead_role="${M_ROLE[0]}" lead_resp="${M_RESP[0]}"
+  if in_session; then
+    lead_label="$HK3_AGENT_ID"
+    lead_role="$HK3_ROLE"
+  fi
+  [[ "${M_HAS_RESP[0]}" == 1 ]] || lead_resp="$(role_description "$lead_role" 2>/dev/null || true)"
+
+  ensure_teams_dir
+  lock
+  [[ ! -f "$ROSTER" ]] || die "$stale"
+  roster_create "$lead_label" "$lead_role" "$lead_resp"
+
+  local started=() args
+  for i in "${!M_ROLE[@]}"; do
+    if [[ "$i" == 0 ]]; then
+      in_session && continue
+      label="$TEAM_LABEL"
+      args=(--name "$TEAM")
+    else
+      label="$TEAM_LABEL--${M_NAME[$i]}"
+      args=(--team "$TEAM" --name "${M_NAME[$i]}")
+    fi
+    if ! "$HK3" session start "${args[@]}" --role "${M_ROLE[$i]}" \
+      --prompt "$(first_prompt "$label" "${M_ROLE[$i]}")"; then
+      echo "hk3: $label did not start; crew start stopped there" >&2
+      echo "hk3: started: ${started[*]:-none}" >&2
+      local j rest=()
+      for j in "${!M_ROLE[@]}"; do [[ "$j" -gt "$i" ]] && rest+=("$TEAM_LABEL--${M_NAME[$j]}"); done
+      echo "hk3: not started: $label${rest[*]:+ ${rest[*]}}" >&2
+      die "every member of crew $CREW_NAME is on the roster of team $TEAM; clean up with: $cleanup"
+    fi
+    started+=("$label")
+  done
+  unlock
+  echo "hk3: started team $TEAM from crew $CREW_NAME: ${started[*]:-nobody}${WORKFLOW_FILE:+; workflow $WORKFLOW_NAME ($WORKFLOW_FILE)}"
+}
 
 cmd_add() {
   local role="" name="" resp="" given_team=""
@@ -222,6 +431,8 @@ cmd_roster() {
   local tabs
   tabs=" $(live_tabs | tr '\n' ' ') "
   echo "Team $TEAM (team label $TEAM_LABEL), roster $ROSTER"
+  yq -r 'select(.crew) | "Crew: " + .crew' "$ROSTER"
+  yq -r 'select(.workflow) | "Workflow: " + .workflow.name + ", " + .workflow.path' "$ROSTER"
   echo "Members (label, role, live herdr tab, responsibility):"
   local label role resp live
   while IFS=$'\t' read -r label role resp; do
@@ -306,6 +517,7 @@ cmd_stop() {
 }
 
 case "${1:-}" in
+  start) shift; require_prefix crew; cmd_start "$@" ;;
   add) shift; require_prefix crew; cmd_add "$@" ;;
   roster) shift; require_prefix crew; cmd_roster "$@" ;;
   stop) shift; require_prefix crew; cmd_stop "$@" ;;

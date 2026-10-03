@@ -1,0 +1,23 @@
+# Example workflow, referenced by crews/feature.yaml. hk3 checks only that
+# this parses and has a description; every other key is for the agents to
+# read and follow with their own judgment.
+description: Plan a feature, review the plan, build it in small steps, then review and test the result.
+steps:
+  - name: plan
+    who: planner
+    does: Breaks the feature into ordered tasks and sends the plan to plan-reviewer.
+  - name: review plan
+    who: plan-reviewer
+    does: Reviews the plan and sends findings back to the planner until it is ready, then tells the captain.
+  - name: build
+    who: builder
+    does: Implements the tasks in order, in small verified steps, and tells the reviewer and tester what changed.
+  - name: review
+    who: reviewer
+    does: Reviews each change and reports findings to the builder.
+  - name: test
+    who: tester
+    does: Tests each change and reports defects to the builder.
+  - name: report
+    who: captain
+    does: Tracks progress from the members' messages and reports to the operator when the feature is done.

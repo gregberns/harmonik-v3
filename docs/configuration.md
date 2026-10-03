@@ -22,9 +22,63 @@ around values that contain spaces.
 | `config.env` | Settings for this project. |
 | `config.yaml` | Role overlay, merged last over base + role. |
 | `build/` | Generated role output. Gitignore it. |
+| `crews/` | Optional, yours: crew definitions, `<name>.yaml`, for `hk3 crew start`. Override hk3's `crews/` by name. |
+| `workflows/` | Optional, yours: workflows, `<name>.yaml`, named by crew definitions. Override hk3's `workflows/` by name. |
 | `teams/` | Team rosters, `<team>.yaml`, written by `hk3 crew`. hk3 creates the folder with a `.gitignore` of `*`, so rosters stay out of git without re-running `hk3 init`. Lock folders `<team>.lock` exist only while a crew command runs. |
 
-`hk3 init` writes these for you.
+`hk3 init` writes `config.env` and `config.yaml`; hk3 writes `build/` and
+`teams/`. You add `crews/` and `workflows/` when you want them.
+
+## Crew definitions and workflows
+
+`hk3 crew start <crew>` takes a crew name or a path. A name (letters,
+digits, `-`, `_`) is looked up as `<project>/.harmonik-v3/crews/<name>.yaml`,
+then `<harmonik-v3 repo>/crews/<name>.yaml`; the first found wins. An
+argument containing `/` or ending in `.yaml`/`.yml` is a path to the file.
+
+```yaml
+description: Plan, build, review and test a feature.   # required
+workflow: plan-build-review                             # optional, a workflow name
+members:                                                # required, the first is the lead
+  - role: captain
+  - role: reviewer
+    name: plan-reviewer
+    responsibility: Reviews plans before building starts.
+  - role: builder
+    count: 2
+```
+
+| Member key | Meaning |
+|---|---|
+| `role` | Required. A role in `config/roles/`. |
+| `name` | Member name; defaults to the role. Same rules as `--name`: letters, digits, `-`, `_`, no `--`, and may not start or end with `-`. |
+| `count` | Whole number, at least 1; default 1. `count: 2` gives `builder` and `builder-2`. |
+| `responsibility` | One line; defaults to the role's description. |
+
+The lead (first member) takes the team label (`oc-alpha`), so it has no
+`name`, and no `count` other than 1. Every other member is `<prefix>-<team>--<name>`. The
+resulting names must be unique. hk3 checks only this structure, and the
+workflow below, before it starts anything; it never reads other keys.
+The file must hold exactly one YAML document.
+
+A workflow is looked up by name as `<project>/.harmonik-v3/workflows/<name>.yaml`,
+then `<harmonik-v3 repo>/workflows/<name>.yaml`. It must be a YAML mapping
+with a non-empty `description`; every other key is free-form, for the
+agents. `crew start` writes the workflow's name and absolute path into the
+roster:
+
+```yaml
+team: alpha
+label: oc-alpha
+crew: feature
+workflow:
+  name: plan-build-review
+  path: /Users/me/dev/harmonik-v3/workflows/plan-build-review.yaml
+members:
+  - label: oc-alpha
+    role: captain
+    responsibility: "Leads a team: ..."
+```
 
 ## Launcher settings (`HK3_*`)
 
