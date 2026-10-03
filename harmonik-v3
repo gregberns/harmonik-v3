@@ -3,21 +3,28 @@
 #
 # Usage:
 #   hk3 init [-- <extra claude args>]
-#   hk3 new agent claude [--role <role>] [--name <name>] [-- <extra claude args>]
-#   hk3 resume agent claude [<session-id>] [--role <role>] [--name <name>] [-- <extra claude args>]
+#   hk3 new agent claude [--role <role>] [--team <team>] [--name <name>] [-- <extra claude args>]
+#   hk3 resume agent claude [<session-id>] [--role <role>] [--team <team>] [--name <name>] [-- <extra claude args>]
 #   hk3 build roles
 #   hk3 build role <role>
 #   hk3 list roles
 #   hk3 config
+#   hk3 <module> [args...]
+#
+# Any other first word that names a folder modules/<module>/ with an
+# executable `main` is forwarded to it: hk3 resolves the project, loads
+# settings, exports HK3_PROJECT_DIR and HK3_ROOT, and execs main with the
+# remaining arguments.
 #
 # Sessions run in the project: the git root of the current directory (or
 # $HK3_PROJECT_DIR). Project config lives in <project>/.harmonik-v3/.
 #
 # Configuration precedence: shell environment > <project>/.harmonik-v3/config.env
-# > <harmonik-v3 repo>/.env > defaults below.
+# > <harmonik-v3 repo>/.env > defaults (lib/hk3.sh, modules/keeper/defaults.sh).
 #
 # HK3_* settings belong to the launcher; KEEPER_* settings belong to keeper,
-# the claude-keeper plugin that hands off and restarts at a token threshold.
+# the module (modules/keeper/) whose plugin hands off and restarts at a token
+# threshold.
 set -euo pipefail
 
 # Resolve symlinks so the script works when linked onto PATH (e.g. as hk3).
@@ -27,29 +34,14 @@ while [[ -L "$self" ]]; do
   [[ "$link" == /* ]] || link="$(dirname "$self")/$link"
   self="$link"
 done
-ROOT="$(cd "$(dirname "$self")" && pwd)"
+# shellcheck source=lib/hk3.sh
+source "$(cd "$(dirname "$self")" && pwd)/lib/hk3.sh"
 unset self link
-PLUGIN_DIR="$ROOT/plugins/claude-keeper"
+PLUGIN_DIR="$ROOT/modules/keeper/plugin"
 ROLES_DIR="$ROOT/config/roles"
 COMPOSE_ROLE="$ROOT/scripts/compose-role"
 STATUSLINE="$ROOT/scripts/statusline"
 INIT_PROMPT="$ROOT/setup/init-prompt.md"
-
-PROJECT_DIR="${HK3_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
-PROJECT_CONF="$PROJECT_DIR/.harmonik-v3"
-
-# --- Defaults (override in .env or config.env) ------------------------------
-# Role used when --role is not given.
-: "${HK3_DEFAULT_ROLE:=general}"
-# 1 = pass --dangerously-skip-permissions to claude.
-: "${HK3_DEFAULT_CLAUDE_SKIP_PERMISSIONS:=1}"
-# 1 = pass --remote-control to claude.
-: "${HK3_DEFAULT_CLAUDE_REMOTE_CONTROL:=0}"
-# Context tokens at which keeper runs its handoff/restart cycle.
-: "${KEEPER_DEFAULT_RESTART_TOKEN_COUNT:=200000}"
-# 1 = /clear instead of native compaction.
-: "${KEEPER_DEFAULT_RESTART_CLEAR_MODE:=0}"
 
 usage() {
   cat <<EOF
@@ -58,9 +50,9 @@ Usage: hk3 <command>
 Commands:
   init [-- args...]
       Start a Claude session that sets up .harmonik-v3/ for this project.
-  new agent claude [--role <role>] [--name <name>] [-- args...]
+  new agent claude [--role <role>] [--team <team>] [--name <name>] [-- args...]
       Start a new Claude session.
-  resume agent claude [<session-id>] [--role <role>] [--name <name>] [-- args...]
+  resume agent claude [<session-id>] [--role <role>] [--team <team>] [--name <name>] [-- args...]
       Resume a Claude session (no id: open the picker).
   build roles | build role <role>
       Compose role config into <project>/.harmonik-v3/build/roles/<role>/.
@@ -69,41 +61,32 @@ Commands:
   config
       Print the resolved configuration for this project.
 
+Modules:
+  keeper
+      Hands off and restarts a session at a token threshold. No commands; its
+      plugin loads into every agent launch.
+
 Project: $PROJECT_DIR
-Sessions run in the project with keeper (the claude-keeper plugin) loaded for
+Sessions run in the project with keeper (the hk3-keeper plugin) loaded for
 that launch only. --role (or HK3_ROLE; default $HK3_DEFAULT_ROLE) selects the
 role's settings and skills. --name (or HK3_AGENT_NAME) names the agent, e.g.
 alpha, bravo, charlie; it fills {name} in keeper's prompts. With
 HK3_PROJECT_PREFIX (e.g. oc) the agent's label is <prefix>-<name> (oc-alpha);
-the label shows in the status line and the session name. Args after -- are passed through to claude.
+the label shows in the status line and the session name. --team <team> makes
+the agent a team member: its name is <team>--<name> and its label
+<prefix>-<team>--<name> (oc-alpha--builder). Args after -- are passed through
+to claude.
 Configuration: shell env > $PROJECT_CONF/config.env > $ROOT/.env
 EOF
 }
 
-die() { echo "hk3: $*" >&2; exit 1; }
-
-# Precedence: shell environment > project config.env > repo .env > defaults.
-load_env() {
-  local name names=() values=()
-  for name in $(compgen -e | grep -E '^(HK3|KEEPER)_' || true); do
-    names+=("$name"); values+=("${!name}")
-  done
-  local env_file
-  for env_file in "$ROOT/.env" "$PROJECT_CONF/config.env"; do
-    [[ -f "$env_file" ]] || continue
-    set -a
-    # shellcheck disable=SC1090
-    source "$env_file"
-    set +a
-  done
-  local i
-  for i in "${!names[@]}"; do export "${names[$i]}=${values[$i]}"; done
-  : "${HK3_ROLE:=$HK3_DEFAULT_ROLE}"
-  : "${HK3_CLAUDE_SKIP_PERMISSIONS:=$HK3_DEFAULT_CLAUDE_SKIP_PERMISSIONS}"
-  : "${HK3_CLAUDE_REMOTE_CONTROL:=$HK3_DEFAULT_CLAUDE_REMOTE_CONTROL}"
-  : "${KEEPER_RESTART_TOKEN_COUNT:=$KEEPER_DEFAULT_RESTART_TOKEN_COUNT}"
-  : "${KEEPER_RESTART_CLEAR_MODE:=$KEEPER_DEFAULT_RESTART_CLEAR_MODE}"
-  export HK3_ROLE KEEPER_RESTART_TOKEN_COUNT KEEPER_RESTART_CLEAR_MODE
+# load_launch_settings: load_settings, then keeper's defaults (after the config
+# files, so they still override them). Keeper's plugin loads into every core
+# launch, so the router, not the library, links to its defaults.
+load_launch_settings() {
+  load_settings
+  # shellcheck source=modules/keeper/defaults.sh
+  source "$ROOT/modules/keeper/defaults.sh"
 }
 
 # Keeper prompt overrides; {name} needs an agent name.
@@ -153,12 +136,7 @@ run_claude() {
   local role_dir
   role_dir="$(build_role "$HK3_ROLE")" || exit 1
   local flags=(--plugin-dir "$PLUGIN_DIR" --settings "$role_dir/settings.json" --plugin-dir "$role_dir/plugin")
-  local part
-  for part in HK3_PROJECT_PREFIX HK3_AGENT_NAME; do
-    [[ "${!part:-}" =~ ^[A-Za-z0-9_-]*$ ]] || die "$part may only contain letters, digits, - and _: ${!part}"
-  done
-  # The agent's label: <prefix>-<name>, or whichever part is set.
-  HK3_AGENT_ID="${HK3_PROJECT_PREFIX:-}${HK3_PROJECT_PREFIX:+${HK3_AGENT_NAME:+-}}${HK3_AGENT_NAME:-}"
+  HK3_AGENT_ID="$(agent_label "${HK3_AGENT_NAME:-}")"
   export HK3_AGENT_ID
   [[ -n "$HK3_AGENT_ID" ]] && flags+=(--name "$HK3_AGENT_ID")
   base_flags
@@ -178,9 +156,11 @@ run_claude() {
   export KEEPER_ENABLED=1
   # The older harmonik's global hooks (SessionStart, Stop) name the agent
   # from HARMONIK_AGENT, else the tmux session, and write per-agent markers
-  # its watcher reads. A prefixed name keeps an hk3 agent from overwriting
-  # the markers of an older agent with the same name (e.g. alpha.sid).
-  export HARMONIK_AGENT="${HK3_PROJECT_PREFIX:-hk3}-${HK3_AGENT_NAME:-unnamed}"
+  # its watcher reads. The full label (hk3-<name> without a prefix) keeps an
+  # hk3 agent from overwriting the markers of an older agent with the same
+  # name (e.g. alpha.sid), and keeps team members apart.
+  HARMONIK_AGENT="$(HK3_PROJECT_PREFIX="${HK3_PROJECT_PREFIX:-hk3}" agent_label "${HK3_AGENT_NAME:-unnamed}")"
+  export HARMONIK_AGENT
 
   echo "hk3: project $PROJECT_DIR" >&2
   echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
@@ -194,13 +174,15 @@ run_claude() {
 # agent_claude <new|resume> [args...]: parse options, then launch.
 agent_claude() {
   local verb="$1"; shift
-  local session_id="" passthrough=()
+  local session_id="" team="" name_given="" passthrough=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --role) [[ $# -ge 2 ]] || die "--role needs a value"; HK3_ROLE="$2"; shift 2 ;;
       --role=*) HK3_ROLE="${1#--role=}"; shift ;;
-      --name) [[ $# -ge 2 ]] || die "--name needs a value"; export HK3_AGENT_NAME="$2"; shift 2 ;;
-      --name=*) export HK3_AGENT_NAME="${1#--name=}"; shift ;;
+      --name) [[ $# -ge 2 ]] || die "--name needs a value"; export HK3_AGENT_NAME="$2"; name_given=1; shift 2 ;;
+      --name=*) export HK3_AGENT_NAME="${1#--name=}"; name_given=1; shift ;;
+      --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; team="$2"; shift 2 ;;
+      --team=*) team="${1#--team=}"; [[ -n "$team" ]] || die "--team needs a value"; shift ;;
       --) shift; passthrough=("$@"); break ;;
       -*) die "unknown option: $1 (pass claude flags after --)" ;;
       *)
@@ -209,6 +191,23 @@ agent_claude() {
     esac
   done
   [[ -n "$HK3_ROLE" ]] || die "--role needs a value"
+
+  # Naming: see lib/hk3.sh. Checked before anything is built or launched.
+  check_part HK3_PROJECT_PREFIX "${HK3_PROJECT_PREFIX:-}"
+  if [[ -n "$team" ]]; then
+    [[ -n "$name_given" && -n "$HK3_AGENT_NAME" ]] || die "--team needs --name <member>"
+    check_part --team "$team"
+    check_part --name "$HK3_AGENT_NAME"
+    HK3_AGENT_NAME="$(member_name "$team" "$HK3_AGENT_NAME")"
+    export HK3_AGENT_NAME HK3_TEAM="$team"
+  else
+    local what=HK3_AGENT_NAME
+    [[ -n "$name_given" ]] && what=--name
+    [[ "${HK3_AGENT_NAME:-}" != *--* ]] ||
+      die "$what may not contain -- ($HK3_AGENT_NAME); name a team member with --team <team> --name <member>"
+    check_part HK3_AGENT_NAME "${HK3_AGENT_NAME:-}"
+    unset HK3_TEAM
+  fi
 
   local args=()
   if [[ "$verb" == resume ]]; then
@@ -222,7 +221,7 @@ cmd_agent() {
   local verb="$1" what="${2:-}" runtime="${3:-}"
   [[ "$what" == agent ]] || { usage >&2; exit 1; }
   shift 3 2>/dev/null || shift $#
-  load_env
+  load_launch_settings
   case "$runtime" in
     claude) agent_claude "$verb" "$@" ;;
     "") die "missing agent runtime (try: hk3 $verb agent claude)" ;;
@@ -233,7 +232,7 @@ cmd_agent() {
 # cmd_init: launch claude in the project with setup instructions; no keeper.
 cmd_init() {
   [[ "${1:-}" == -- ]] && shift
-  load_env
+  load_launch_settings
   command -v claude >/dev/null || die "claude not found on PATH"
   [[ -f "$INIT_PROMPT" ]] || die "missing $INIT_PROMPT"
   local prompt
@@ -246,7 +245,7 @@ cmd_init() {
 }
 
 cmd_config() {
-  load_env
+  load_launch_settings
   echo "harmonik-v3 root: $ROOT"
   echo "project:          $PROJECT_DIR"
   local f
@@ -279,6 +278,16 @@ cmd_list() {
   esac
 }
 
+# cmd_module <word> [args...]: forward to modules/<word>/main, or print usage.
+cmd_module() {
+  local main="$ROOT/modules/$1/main"
+  [[ "$1" =~ ^[a-z][a-z0-9-]*$ && -f "$main" && -x "$main" ]] || { usage >&2; exit 1; }
+  shift
+  load_settings
+  export HK3_PROJECT_DIR="$PROJECT_DIR" HK3_ROOT="$ROOT"
+  exec "$main" "$@"
+}
+
 case "${1:-}" in
   init) shift; cmd_init "$@" ;;
   config) cmd_config ;;
@@ -286,5 +295,5 @@ case "${1:-}" in
   build) shift; cmd_build "$@" ;;
   list) shift; cmd_list "$@" ;;
   -h|--help|help|"") usage ;;
-  *) usage >&2; exit 1 ;;
+  *) cmd_module "$@" ;;
 esac

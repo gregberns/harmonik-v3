@@ -57,6 +57,7 @@ words.
 hk3 new agent claude --name alpha --role builder   # new agent with a role
 hk3 resume agent claude --name alpha               # pick a past session to resume
 hk3 resume agent claude <session-id> --name alpha  # resume a specific one
+hk3 new agent claude --team alpha --name builder   # team member oc-alpha--builder
 hk3 config                                         # what settings apply here, and from where
 hk3 list roles
 hk3 --help
@@ -91,6 +92,6 @@ A project can adjust any role in `.harmonik-v3/config.yaml`.
 - [docs/configuration.md](docs/configuration.md): every setting, project config files, how roles are built
 - [docs/architecture.md](docs/architecture.md): what a launch does, the repo layout, design decisions
 - [docs/testing.md](docs/testing.md): how to verify changes
-- [plugins/claude-keeper/README.md](plugins/claude-keeper/README.md): how keeper's handoff and restart work
+- [modules/keeper/plugin/README.md](modules/keeper/plugin/README.md): how keeper's handoff and restart work
 
 Working on harmonik-v3 with an agent? It starts at [AGENTS.md](AGENTS.md).

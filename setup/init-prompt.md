@@ -11,7 +11,7 @@ start other work.
 `hk3 new agent claude [--role <role>] [--name <name>]` runs `claude` from the
 project's git root with:
 
-- keeper, the claude-keeper plugin (`{{HK3_ROOT}}/plugins/claude-keeper`). At a
+- keeper, the hk3-keeper plugin (`{{HK3_ROOT}}/modules/keeper/plugin`). At a
   token threshold it asks the agent to write a handoff and end its answer with
   the line `HANDOFF_READY`. It then compacts (or runs /clear) and submits a
   startup prompt so the agent resumes on its own.
@@ -29,7 +29,7 @@ project's git root with:
   `HK3_AGENT_NAME=<name>`; if it looks up per-agent state by name, check
   which one it reads and report a mismatch.
 
-Read `{{HK3_ROOT}}/README.md` and `{{HK3_ROOT}}/plugins/claude-keeper/README.md`
+Read `{{HK3_ROOT}}/README.md` and `{{HK3_ROOT}}/modules/keeper/plugin/README.md`
 before you decide anything.
 
 ## Files you may write (all in `{{PROJECT_DIR}}/.harmonik-v3/`)

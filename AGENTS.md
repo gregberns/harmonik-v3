@@ -54,4 +54,4 @@ Keep it under 60 lines. When a section grows past a few lines, move it to
 - [docs/architecture.md](docs/architecture.md): components, launch flow, design decisions
 - [docs/configuration.md](docs/configuration.md): settings, config files, role merging
 - [docs/testing.md](docs/testing.md): how to verify changes
-- [plugins/claude-keeper/README.md](plugins/claude-keeper/README.md): keeper internals
+- [modules/keeper/plugin/README.md](modules/keeper/plugin/README.md): keeper internals

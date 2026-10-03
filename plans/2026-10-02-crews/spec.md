@@ -192,7 +192,7 @@ These rules bind every ticket.
   already the team label, so `oc-alpha` growing `oc-alpha--tester` needs no
   rename; one numbering rule for definitions and adds.*
 - Prefix, team and member parts use the current character set
-  (`[A-Za-z0-9_-]`) and must not contain `--`.
+  (`[A-Za-z0-9_-]`), must not contain `--`, and must not start or end with `-` (so a label splits at `--` unambiguously; added during ticket 02).
 - `hk3 new|resume agent claude` gains `--team <team>`. With it, hk3
   validates `--name`, then sets `HK3_AGENT_NAME=<team>--<name>` and
   `HK3_TEAM=<team>`. The label is `<prefix>-<team>--<name>`. A `--` typed

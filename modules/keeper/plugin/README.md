@@ -1,4 +1,4 @@
-# claude-keeper
+# hk3-keeper
 
 A standalone Claude Code plugin: reach a token threshold, ask the agent to
 write its usual HANDOFF, compact or clear, then submit a configured startup
@@ -19,7 +19,9 @@ hk3 resume agent claude <session-id>   # omit the id for the picker
 
 `hk3` (`harmonik-v3` at the repo root) loads settings (see the top-level
 README), sets `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` and `KEEPER_ENABLED=1`, and
-runs `claude --plugin-dir plugins/claude-keeper` from the project's git root.
+runs `claude --plugin-dir modules/keeper/plugin` from the project's git root.
+The plugin lives in hk3's keeper module (`modules/keeper/`), next to
+`defaults.sh`, which holds the `KEEPER_*` defaults hk3 applies.
 
 The plugin is never installed: `--plugin-dir` loads it for that launch only.
 It is also inert unless `KEEPER_ENABLED=1`, so it does nothing if loaded
@@ -32,7 +34,7 @@ your clone. Existing keeper `PreCompact` hooks can block this experiment.
 change global settings. Your other configured plugins/hooks still apply.
 
 Give the agent a task that uses tools and has a next step after HANDOFF.
-Watch for `[claude-keeper]` logs: observed tokens, handoff requested,
+Watch for `[hk3-keeper]` logs: observed tokens, handoff requested,
 handoff completed, compaction completed (before/after counts), startup
 submitted. Check that the resumed agent reads HANDOFF and completes the
 next step without another keystroke.
@@ -59,7 +61,8 @@ behavior defaults:
 
 `KEEPER_HANDOFF_PROMPT`, `KEEPER_STARTUP_KIND` and `KEEPER_STARTUP_PROMPT`
 override the prompts per project; `{name}` and `{role}` are filled from
-`HK3_AGENT_NAME` and `HK3_ROLE`.
+`HK3_AGENT_NAME` and `HK3_ROLE` (a team member's name is `<team>--<member>`,
+so `HANDOFF-{name}` gives `HANDOFF-alpha--builder`).
 
 Two environment overrides make quick tests easy:
 
@@ -101,8 +104,8 @@ This POC has no repeated cycles, three-tier warnings, or keeper integration.
 ## Checks
 
 ```sh
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate plugins/claude-keeper --json
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugins/claude-keeper
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate modules/keeper/plugin --json
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test modules/keeper/plugin
 ```
 
 Tests invoke the actual registered callbacks with fake engine operations and

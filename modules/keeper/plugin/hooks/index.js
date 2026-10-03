@@ -1,5 +1,5 @@
 /**
- * claude-keeper: a small function-hooks plugin proof of concept.
+ * hk3-keeper: a small function-hooks plugin proof of concept.
  *
  * Watches absolute token usage during a running session. Once a low
  * configurable threshold is crossed, it asks the agent (mid-turn, via
@@ -157,7 +157,7 @@ export async function resolveConfig($, state) {
 }
 
 function log($, message) {
-  $.ui.log(`[claude-keeper] ${message}`);
+  $.ui.log(`[hk3-keeper] ${message}`);
 }
 
 async function submitStartup($, cfg) {
