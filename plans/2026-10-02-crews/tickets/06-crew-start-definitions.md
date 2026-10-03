@@ -11,7 +11,9 @@ definition and its workflow structurally; refuses if the team has a roster
 (point to `crew add`, or `crew stop --all` for a stale one), if the team
 label is a live tab (point to starting from inside that agent, or another
 name), or if any member label is live; then, under the lock, writes the
-roster (with the workflow name and path) and starts each member. On a
+roster (with the workflow name and path) and starts each member: the lead
+(first) slot as plain `oc-alpha` (a solo launch named after the team, with
+the slot's role), the others as `oc-alpha--<member>`. On a
 failed start it stops and prints which members started. From inside a
 session it uses the caller's team; the caller fills the lead slot,
 recorded with its actual role, and the slot's responsibility only if the
@@ -19,14 +21,11 @@ definition gives one. Add a `captain` role, one example definition
 (captain, planner, plan reviewer, builder, reviewer, tester) and one
 example workflow it references.
 
-Depends on open questions 1 (naming, numbering) and 3 (captain's slot):
-check the operator's answers first; the proposed defaults are written here.
-
 **Blocked by:** 04 (crew add, roster, stop)
 
 **Status:** ready-for-agent
 
-- [ ] With the fake `claude` and `hk3test`: `crew start <example> --team alpha` starts `oc-alpha--captain`, `--planner`, `--plan-reviewer`, `--builder`, `--reviewer`, `--tester` in workspace `oc-alpha`; the roster lists them with responsibilities and the workflow path
+- [ ] With the fake `claude` and `hk3test`: `crew start <example> --team alpha` starts `oc-alpha` (role captain), `oc-alpha--planner`, `--plan-reviewer`, `--builder`, `--reviewer`, `--tester` in workspace `oc-alpha`; the roster lists them with responsibilities and the workflow path
 - [ ] `count: 2` gives `builder` and `builder-2`
 - [ ] Each invalid fixture (unknown role, duplicate resulting names, `--` in a name, bad count, not YAML, missing workflow, workflow without a description) is refused and starts nothing
 - [ ] Refused with a pointer: team already has a roster; team label `oc-alpha` is a live tab; a member label is live

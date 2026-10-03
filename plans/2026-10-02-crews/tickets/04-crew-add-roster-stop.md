@@ -16,9 +16,6 @@ The teams folder gets a `.gitignore` of `*` when created. `hk3 crew roster
 tab (with a note); `--all` from inside a session keeps the caller, from
 outside stops all and deletes the roster. Bare `crew stop` is refused.
 
-Depends on open question 1 (naming, numbering): check the operator's answer
-first; the proposed default is written here.
-
 **Blocked by:** 03 (session module)
 
 **Status:** ready-for-agent

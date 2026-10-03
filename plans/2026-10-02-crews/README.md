@@ -13,18 +13,18 @@ and enforces no process. Public commands: `session start|stop`,
 `crew start|add|stop|roster`.
 
 - [requirements.md](requirements.md): the operator's requirements (source of truth)
-- [spec.md](spec.md): the spec, decisions and open questions
+- [spec.md](spec.md): the spec and decisions, including the operator's answers
 - [research-herdr.md](research-herdr.md), [research-messaging.md](research-messaging.md): verified facts
 - [review-scope.md](review-scope.md), [review-technical.md](review-technical.md): reviews applied to this version
 
 ## Tickets
 
-| # | Ticket | Blocked by | Open questions to check first |
-|---|---|---|---|
-| 01 | [Spike: hk3 agents in herdr can message each other](tickets/01-spike-herdr-messaging.md) | none | none |
-| 02 | [Router, shared library, keeper module and team names](tickets/02-router-naming.md) | none | Q1, Q2 |
-| 03 | [Session module: start and stop agents in herdr](tickets/03-session-module-herdr.md) | 01, 02 | Q4 |
-| 04 | [Crew module: add and stop members, with a roster](tickets/04-crew-add-roster-stop.md) | 03 | Q1 |
-| 05 | [Crew skill and team messaging](tickets/05-crew-skill-messaging.md) | 04 (and spike messaging go) | none |
-| 06 | [Start a team from a crew definition, with its workflow](tickets/06-crew-start-definitions.md) | 04 | Q1, Q3 |
-| 07 | [Project skills (project-management skill slot)](tickets/07-project-skills-slot.md) | 02 | none |
+| # | Ticket | Blocked by |
+|---|---|---|
+| 01 | [Spike: hk3 agents in herdr can message each other](tickets/01-spike-herdr-messaging.md) | none |
+| 02 | [Router, shared library, keeper module and team names](tickets/02-router-naming.md) | none |
+| 03 | [Session module: start and stop agents in herdr](tickets/03-session-module-herdr.md) | 01, 02 |
+| 04 | [Crew module: add and stop members, with a roster](tickets/04-crew-add-roster-stop.md) | 03 |
+| 05 | [Crew skill and team messaging](tickets/05-crew-skill-messaging.md) | 04 (and spike messaging go) |
+| 06 | [Start a team from a crew definition, with its workflow](tickets/06-crew-start-definitions.md) | 04 |
+| 07 | [Project skills (project-management skill slot)](tickets/07-project-skills-slot.md) | 02 |

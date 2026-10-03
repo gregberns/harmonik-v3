@@ -16,10 +16,6 @@ Parts may not contain `--`; `--name alpha--builder` is refused, pointing to
 `HK3_AGENT_NAME`), team label (part of `HK3_AGENT_ID` before `--`), and the
 next free same-role name (`builder`, `builder-2`, ...).
 
-Depends on open questions 1 (naming, numbering) and 2 (keeper move): check
-the operator's answers in spec.md first; the proposed defaults are written
-here.
-
 **Blocked by:** None (can start immediately)
 
 **Status:** ready-for-agent

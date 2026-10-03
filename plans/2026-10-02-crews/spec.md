@@ -45,7 +45,7 @@ or whether to grow or shrink the team. Those are the agents' judgment.
 
 Operator:
 
-1. As an operator, I want to start a named team (e.g. `alpha`) from a crew definition with one command, so that I can spin up a team with a known shape.
+1. As an operator, I want to start a named team (e.g. `alpha`) from a crew definition with one command, with its lead named `oc-alpha` and the others `oc-alpha--<member>`, so that I can spin up a team with a known shape.
 2. As an operator, I want a crew definition to allow several members with the same role, named predictably (`builder`, `builder-2`), so that I can run two builders.
 3. As an operator, I want crew definitions both in the hk3 repo and in the project, so that I can reuse shapes and still tailor them.
 4. As an operator, I want to start a team from a one-off definition file, so that a team can be put together for a particular problem.
@@ -104,8 +104,7 @@ Project setup:
   `KEEPER_*` defaults. It has no commands yet; the core launch loads the
   plugin from the module folder. Keeper behavior does not change.
   *Rationale: requirements name keeper as the first module and ask that its
-  code stay focused.* **Needs operator confirmation** (open question 2:
-  moves the plugin's path).
+  code stay focused.* Confirmed by the operator.
 
 ### 2. Session module (herdr)
 
@@ -116,7 +115,9 @@ Project setup:
 - All agents live in one herdr session, named by `HK3_HERDR_SESSION`
   (default `hk3`). `session` and `crew` commands require
   `HK3_PROJECT_PREFIX`, so workspace labels from different projects do not
-  collide. *Rationale: one place to attach; prefix keeps projects apart.*
+  collide. *Rationale: the simplest option for now (operator: mainly one
+  project, several teams at once); one place to attach, and the prefix keeps
+  projects apart. Can change later.*
 - **Clean environment.** A captain runs these commands from Claude's Bash
   tool, whose environment carries Claude's own variables (`CLAUDECODE`,
   `CLAUDE_CODE_*`) and the captain's identity (`HK3_*`, `KEEPER_*`,
@@ -155,7 +156,7 @@ Project setup:
 
 ### 3. Naming
 
-- Grammar (proposed default, open question 1):
+- Grammar (confirmed by the operator, "acceptable for now"):
 
   ```
   solo agent   <prefix>-<name>               oc-alpha
@@ -185,9 +186,11 @@ Project setup:
   - The team label is the part of `HK3_AGENT_ID` before `--`.
 - Same-role names: the lowest free name among `builder`, `builder-2`,
   `builder-3`, ...
-- In a team started from a definition, the lead is a normal member
-  (`oc-alpha--captain`). In a team grown by a solo captain, or joined by a
-  captain, the founder keeps `oc-alpha`.
+- The lead of a team is always plain `<prefix>-<team>` (`oc-alpha`), the
+  team label itself: whether a solo captain grows the team, a captain joins
+  a definition, or the operator starts a definition (hk3 then launches the
+  lead slot as a solo agent named after the team). Every other member is
+  `oc-alpha--<member>`.
 
 ### 4. Crew definitions
 
@@ -218,11 +221,12 @@ Project setup:
   `crew stop --all` for a stale one), refuse if the team label itself is a
   live tab (point to running the start from inside that agent, or another
   team name), refuse if any member label is live; then write the roster and
-  start every member.
+  start every member. The lead (first) slot starts as `oc-alpha`, with the
+  slot's role; the others as `oc-alpha--<member>`.
 - From inside an hk3 session, `hk3 crew start <crew>` uses the caller's
   team. The caller fills the lead (first) slot and is recorded with its
   actual role; the slot's `responsibility` is used only if the definition
-  gives one. The rest are started. **Open question 3.**
+  gives one. The rest are started.
 - `hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`
   adds one member. Inside a session the team is the caller's; the first add
   from a solo agent creates the roster with the caller (its actual role) as
@@ -363,15 +367,13 @@ Project setup:
 - Herdr keeps a tab's label separate from the terminal title, so Claude
   setting its title should not change the label; the spike confirms.
 
-## Open questions for the operator
+## Decisions from the operator (2026-10-02)
 
-1. Naming: `oc-alpha--builder`, with same-role members `builder`,
-   `builder-2`, `builder-3`? And should a team started from a definition
-   name its lead `oc-alpha--captain` (proposed) or plain `oc-alpha`?
-2. Keeper module: OK to move the keeper plugin into a modules folder (its
-   path in docs changes)?
-3. When a captain starts a definition from inside its session, it takes the
-   first (lead) slot and is recorded with its actual role. OK, or should the
-   definition name the lead slot?
-4. One herdr session (`hk3`) for all projects, with a project prefix
-   required (proposed), or one per project?
+1. Naming: `oc-alpha--builder`; same-role members `builder`, `builder-2`,
+   `builder-3`. A team's lead is plain `oc-alpha`, also when the team is
+   started from a definition. "Acceptable for now."
+2. Keeper module: move the keeper plugin into the modules folder.
+3. A captain that starts a definition from inside its session takes the
+   lead slot and keeps its own role.
+4. herdr: one session (`hk3`, overridable with `HK3_HERDR_SESSION`), teams
+   as workspaces. The simplest option for now; can change later.

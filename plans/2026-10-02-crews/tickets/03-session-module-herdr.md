@@ -16,9 +16,6 @@ period, closes the tab if still open, and closes an emptied workspace; a
 missing label exits 0 with a notice. An internal tab listing is provided for
 the crew module. Apply the spike's findings.
 
-Depends on open question 4 (one herdr session for all projects): check the
-operator's answer first; the proposed default is written here.
-
 **Blocked by:** 01 (spike), 02 (router and team names)
 
 **Status:** ready-for-agent
