@@ -23,6 +23,17 @@ scripts/compose-role --overlay <file> <role> <out-dir>
 
 Inspect `<out-dir>/role.yaml`, `settings.json` and `plugin/skills/`.
 
+Project skills: in a scratch repo, add `.harmonik-v3/skills/pm/SKILL.md` and
+`.harmonik-v3/skills/commit-hygiene/SKILL.md` (a different description) and
+`skills: [pm]` in `.harmonik-v3/config.yaml`. `hk3 build role builder` (from
+a subdirectory) must put `pm` and the project's `commit-hygiene` in
+`plugin/skills/`; `hk3 build roles` puts `pm` in every role. Listing a skill
+that is in neither folder (or `pm` with the project folder moved away) must
+exit 1 naming it. With the fake `claude` below, the second `--plugin-dir`
+of `hk3 new agent claude` must hold `skills/pm`. A project skill that is a
+relative symlink (the folder, or just its `SKILL.md`) must be copied as real
+files: `cat` of the built `SKILL.md` works.
+
 ## Launcher, without starting Claude
 
 Put a fake `claude` first on PATH that prints its arguments, working

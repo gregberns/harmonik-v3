@@ -104,12 +104,12 @@ list_roles() {
   done
 }
 
-# build_role <role>: compose the role with the project overlay; prints its
-# build dir.
+# build_role <role>: compose the role with the project overlay and the
+# project's skills folder (searched before hk3's); prints its build dir.
 build_role() {
   local overlay=()
   [[ -f "$PROJECT_CONF/config.yaml" ]] && overlay=(--overlay "$PROJECT_CONF/config.yaml")
-  "$COMPOSE_ROLE" ${overlay[@]+"${overlay[@]}"} "$1" "$PROJECT_CONF/build/roles/$1"
+  "$COMPOSE_ROLE" ${overlay[@]+"${overlay[@]}"} --skills-dir "$PROJECT_CONF/skills" "$1" "$PROJECT_CONF/build/roles/$1"
 }
 
 # base_flags: claude flags every launch gets, into the array `flags`.

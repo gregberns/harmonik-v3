@@ -62,7 +62,10 @@ before you decide anything.
   and the overlay wins; lists concatenate. A `null` value deletes a key, for
   example a `settings.skillOverrides` entry from the base. `skills_remove: [x]`
   drops a skill the base or role adds (the base adds `handoff`, which writes
-  `HANDOFF.md`).
+  `HANDOFF.md`). Skills listed under `skills` here load into every role.
+- `skills/<name>/SKILL.md`: the project's own skills. A skill listed in
+  `config.yaml` is looked up here first, then in `{{HK3_ROOT}}/skills/`
+  (same name: the project's wins). hk3 ships no project-management skill.
 - `.gitignore`: must contain `build/` (hk3 writes composed roles there).
 
 Omit any file or key whose default is already right. Fewer settings are better.

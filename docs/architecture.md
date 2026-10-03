@@ -14,10 +14,10 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 | `modules/session/` | `hk3 session start/stop/tabs`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
 | `modules/crew/` | `hk3 crew start/add/roster/stop`: teams, crew definitions and rosters, through `hk3 session`. |
 | `crews/`, `workflows/` | Example crew definition (`feature`) and workflow (`plan-build-review`); a project's `.harmonik-v3/crews/` and `workflows/` override them by name. |
-| `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin. |
+| `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin (skills from the project's `.harmonik-v3/skills/`, then `skills/`). |
 | `scripts/statusline` | Claude status line: agent badge and role, then the project's own status line. |
 | `config/base.yaml`, `config/roles/*.yaml` | Role definitions. |
-| `skills/` | Skill library. Roles pick skills from it by name. |
+| `skills/` | Skill library. Roles pick skills from it by name; a project's `.harmonik-v3/skills/` is searched first and overrides by name. |
 | `setup/init-prompt.md` | Instructions given to Claude by `hk3 init`. |
 | `docs/` | Documentation; index in `docs/README.md`. |
 | `AGENTS.md` | Context for agents working on this repo (`CLAUDE.md` links to it). |
@@ -207,7 +207,8 @@ as `--name`.
    loads them, since the core launch is what loads keeper.
 3. Composes the role into `<project>/.harmonik-v3/build/roles/<role>/`:
    `config/base.yaml`, then `config/roles/<role>.yaml`, then the project's
-   `.harmonik-v3/config.yaml`.
+   `.harmonik-v3/config.yaml`. Listed skills come from the project's
+   `.harmonik-v3/skills/` first, then hk3's `skills/`.
 4. Runs `claude` from the project root with:
    - `--plugin-dir modules/keeper/plugin` (keeper, loaded for this launch only)
    - `--settings <build>/settings.json` (the role's Claude settings)

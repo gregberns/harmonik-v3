@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 # compose-role — build a role's Claude launch artifacts from YAML config.
 #
-# Usage: scripts/compose-role [--overlay <file>]... <role> [<out-dir>]
+# Usage: scripts/compose-role [--overlay <file>]... [--skills-dir <dir>] <role> [<out-dir>]
 #
 # Merges config/base.yaml, config/roles/<role>.yaml, then each overlay (e.g. a
 # project's .harmonik-v3/config.yaml), in that order: maps merge deeply, later
 # wins; lists concatenate, duplicates removed. A null value deletes the key.
 # Skills named in `skills_remove` are dropped. settings.statusLine defaults to
-# scripts/statusline (set it, or null it, to change that). Writes to <out-dir> (default
+# scripts/statusline (set it, or null it, to change that). Each listed skill
+# is looked up in --skills-dir first (e.g. a project's .harmonik-v3/skills/;
+# skipped if absent), then in skills/. Writes to <out-dir> (default
 # build/roles/<role>):
 #
 #   role.yaml                  the merged config, for inspection
 #   settings.json              .settings, for `claude --settings`
 #   plugin/                    a plugin holding the role's skills, for
-#                              `claude --plugin-dir`, copied from skills/
+#                              `claude --plugin-dir`, copied from the
+#                              skills folders
 #
 # The build goes into a temp folder beside <out-dir>, which then replaces
 # <out-dir> with mv (or is dropped when <out-dir> already has the same
@@ -29,12 +32,16 @@ SKILLS_DIR="$ROOT/skills"
 
 die() { echo "compose-role: $*" >&2; exit 1; }
 
-usage="usage: compose-role [--overlay <file>]... <role> [<out-dir>]"
+usage="usage: compose-role [--overlay <file>]... [--skills-dir <dir>] <role> [<out-dir>]"
 overlays=()
-while [[ "${1:-}" == --overlay ]]; do
+skill_dirs=("$SKILLS_DIR")
+while [[ "${1:-}" == --overlay || "${1:-}" == --skills-dir ]]; do
   [[ $# -ge 2 ]] || die "$usage"
-  [[ -f "$2" ]] || die "overlay not found: $2"
-  overlays+=("$2"); shift 2
+  case "$1" in
+    --overlay) [[ -f "$2" ]] || die "overlay not found: $2"; overlays+=("$2") ;;
+    --skills-dir) skill_dirs=("$2" "$SKILLS_DIR") ;;
+  esac
+  shift 2
 done
 role="${1:-}"
 [[ -n "$role" ]] || die "$usage"
@@ -55,13 +62,23 @@ merged="$(yq eval-all '
   | ... comments = ""
 ' "$BASE" "$role_file" ${overlays[@]+"${overlays[@]}"})"
 
-# Every listed skill must exist in the library.
+# find_skill <name>: the folder of the skill, from the first skills folder
+# that has it; empty if none does.
+find_skill() {
+  local dir
+  for dir in "${skill_dirs[@]}"; do
+    [[ -f "$dir/$1/SKILL.md" ]] && { echo "$dir/$1"; return; }
+  done
+  return 0
+}
+
+# Every listed skill must exist in a skills folder.
 missing=()
 while IFS= read -r skill; do
   [[ -z "$skill" ]] && continue
-  [[ -f "$SKILLS_DIR/$skill/SKILL.md" ]] || missing+=("$skill")
+  [[ -n "$(find_skill "$skill")" ]] || missing+=("$skill")
 done < <(yq '.skills[]' <<<"$merged")
-((${#missing[@]} == 0)) || die "role '$role' lists skills not in $SKILLS_DIR: ${missing[*]}"
+((${#missing[@]} == 0)) || die "role '$role' lists skills not in ${skill_dirs[*]}: ${missing[*]}"
 
 final="$out"
 mkdir -p "$(dirname "$final")"
@@ -81,7 +98,8 @@ jq -n --arg role "$role" --arg desc "$(yq '.description // ""' <<<"$merged")" '{
 
 while IFS= read -r skill; do
   [[ -z "$skill" ]] && continue
-  cp -R "$SKILLS_DIR/$skill" "$out/plugin/skills/$skill"
+  # -L: copy what symlinks point to, so the build holds real files.
+  cp -RL "$(find_skill "$skill")" "$out/plugin/skills/$skill"
 done < <(yq '.skills[]' <<<"$merged")
 
 # Swap the new build in. An unchanged build is dropped, so the folder that

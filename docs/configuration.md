@@ -23,11 +23,12 @@ around values that contain spaces.
 | `config.yaml` | Role overlay, merged last over base + role. |
 | `build/` | Generated role output. Gitignore it. |
 | `crews/` | Optional, yours: crew definitions, `<name>.yaml`, for `hk3 crew start`. Override hk3's `crews/` by name. |
+| `skills/` | Optional, yours: skills, `<name>/SKILL.md`, used when `config.yaml` lists them. Override hk3's `skills/` by name; see [Project skills](#project-skills). |
 | `workflows/` | Optional, yours: workflows, `<name>.yaml`, named by crew definitions. Override hk3's `workflows/` by name. |
 | `teams/` | Team rosters, `<team>.yaml`, written by `hk3 crew`. hk3 creates the folder with a `.gitignore` of `*`, so rosters stay out of git without re-running `hk3 init`. Lock folders `<team>.lock` exist only while a crew command runs. |
 
 `hk3 init` writes `config.env` and `config.yaml`; hk3 writes `build/` and
-`teams/`. You add `crews/` and `workflows/` when you want them.
+`teams/`. You add `crews/`, `skills/` and `workflows/` when you want them.
 
 ## Crew definitions and workflows
 
@@ -201,7 +202,7 @@ Keys:
 
 | Key | Meaning |
 |---|---|
-| `skills` | Skill names from `skills/`. Loaded as plugin `keeper-role`, shown as `keeper-role:<name>`. |
+| `skills` | Skill names, from the project's skills folder or hk3's `skills/` (see [Project skills](#project-skills)). Loaded as plugin `keeper-role`, shown as `keeper-role:<name>`. |
 | `settings` | Any Claude `settings.json` keys, passed via `--settings`. |
 | `description` | Text for the generated plugin manifest. |
 
@@ -221,4 +222,18 @@ settings:
   skillOverrides:
     session-handoff: null
     session-resume: null
+```
+
+### Project skills
+
+A project can keep its own skills in `<project>/.harmonik-v3/skills/<name>/SKILL.md`
+and list them under `skills` in its `config.yaml`. Each listed skill is
+looked up in the project's `.harmonik-v3/skills/` first, then in hk3's
+`skills/`, so a project skill with the same name as an hk3 skill replaces
+it. A listed skill found in neither folder stops the build. hk3 ships no
+project-management skill; this is where a project puts its own, so that
+every role loads it:
+
+```yaml
+skills: [project-management]
 ```

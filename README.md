@@ -245,6 +245,14 @@ agent is `general`.
 
 A project can adjust any role in `.harmonik-v3/config.yaml`.
 
+To give every agent your own project-management skill (hk3 ships none), put
+it in the project at `.harmonik-v3/skills/<name>/SKILL.md` and list it in
+`.harmonik-v3/config.yaml` with `skills: [<name>]`: the overlay applies to
+every role, so every agent loads it. hk3 looks for a listed skill in the
+project's `.harmonik-v3/skills/` first, then in its own `skills/`, so a
+project skill can also replace an hk3 skill of the same name. See
+[docs/configuration.md](docs/configuration.md#project-skills).
+
 ## Learn more
 
 - [docs/configuration.md](docs/configuration.md): every setting, project config files, how roles are built
