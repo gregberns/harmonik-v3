@@ -22,6 +22,7 @@ around values that contain spaces.
 | `config.env` | Settings for this project. |
 | `config.yaml` | Role overlay, merged last over base + role. |
 | `build/` | Generated role output. Gitignore it. |
+| `teams/` | Team rosters, `<team>.yaml`, written by `hk3 crew`. hk3 creates the folder with a `.gitignore` of `*`, so rosters stay out of git without re-running `hk3 init`. Lock folders `<team>.lock` exist only while a crew command runs. |
 
 `hk3 init` writes these for you.
 
@@ -40,7 +41,7 @@ around values that contain spaces.
 | `HK3_STATUSLINE_INNER` | found at launch | Status line command shown after the agent label. |
 | `HK3_HERDR_SESSION` | `hk3` | herdr session that `hk3 session` runs every agent in. |
 
-`hk3 session` commands refuse to run without `HK3_PROJECT_PREFIX`, so
+`hk3 session` and `hk3 crew` commands refuse to run without `HK3_PROJECT_PREFIX`, so
 workspace and tab labels from different projects in the one herdr session
 never collide.
 

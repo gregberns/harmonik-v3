@@ -104,6 +104,57 @@ Two things to know:
   and no agent in them, and `hk3 session start` refuses those labels. Clear
   one with `hk3 session stop <label>`.
 
+## Teams
+
+`hk3 crew` grows a team of agents in herdr and keeps a roster of it. From
+inside an agent (it runs these in its own Bash tool), the team is always the
+agent's own:
+
+```sh
+hk3 crew add tester                                  # solo oc-alpha becomes team alpha; starts oc-alpha--tester
+hk3 crew add builder                                 # oc-alpha--builder
+hk3 crew add builder --responsibility "Builds the parser."   # oc-alpha--builder-2
+hk3 crew roster                                      # who is on the team, who has a live tab, and who you are
+hk3 crew stop tester                                 # stop one member (or several)
+hk3 crew stop --all                                  # stop everyone but yourself
+```
+
+From your own terminal, name the team with `--team`:
+
+```sh
+hk3 crew add builder --team alpha
+hk3 crew roster --team alpha
+hk3 crew stop --all --team alpha                     # stop every member and delete the roster
+```
+
+A member's name defaults to its role, with the next free number when taken
+(`builder`, `builder-2`); a `--name` that is already taken is refused. Its responsibility, one line, defaults to the
+role's description. The first add from a solo agent puts that agent on the
+roster as the first member, under its actual role. Each new member's first
+prompt tells it its label, role and team, and to run `hk3 crew roster`.
+`crew stop` with no member and no `--all` is refused. A member without a
+herdr tab (say, a captain in a plain terminal) is taken off the roster with
+a note; close its terminal yourself. `hk3 crew stop --all --team <team>` also
+clears a stale roster after a crash.
+
+**A crashed member** is not restarted by hk3. Resume it by hand, under the
+same name, in a terminal or a herdr tab:
+
+```sh
+hk3 resume agent claude --team alpha --name builder --role builder
+```
+
+**One handoff file per member.** With keeper's default prompts every agent
+writes `HANDOFF.md`, so team members overwrite each other's. A project that
+runs teams should give each agent its own file through `{name}`, as omatic
+does (see [docs/configuration.md](docs/configuration.md#keeper-settings-keeper_)):
+
+```sh
+KEEPER_HANDOFF_PROMPT="Your context is nearly full. Run the session-handoff skill for lane {name} and write HANDOFF-{name}.md at the repository root."
+KEEPER_STARTUP_KIND=command
+KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
+```
+
 ## Roles
 
 A role picks the agent's skills and Claude settings. Without `--role` an

@@ -50,6 +50,14 @@ load_settings() {
   export HK3_ROLE
 }
 
+# require_prefix <what>: die unless HK3_PROJECT_PREFIX is set and a valid label
+# part (session and crew commands need it to keep projects apart).
+require_prefix() {
+  [[ -n "${HK3_PROJECT_PREFIX:-}" ]] ||
+    die "$1 commands need a project prefix: set HK3_PROJECT_PREFIX in $PROJECT_CONF/config.env"
+  check_part HK3_PROJECT_PREFIX "$HK3_PROJECT_PREFIX"
+}
+
 # --- Naming --------------------------------------------------------------------
 #   solo agent   <prefix>-<name>               oc-alpha
 #   team label   <prefix>-<team>               oc-alpha

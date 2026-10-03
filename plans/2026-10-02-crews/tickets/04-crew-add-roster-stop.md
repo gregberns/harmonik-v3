@@ -2,7 +2,8 @@
 
 **What to build:** The captain-becomes-team tracer bullet (spec decisions 4
 and 6). `hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`
-adds one member through `hk3 session start`. Inside an hk3 session
+adds one member through `hk3 session start` (which gains `--prompt <text>`
+for the first prompt; spec decision 2). Inside an hk3 session
 (`HK3_AGENT_ID` set) the team is the caller's; the first add from solo
 `oc-alpha` creates team `alpha` with `oc-alpha` (its actual role) as first
 member. Outside a session `--team` is required. The name defaults to the
@@ -18,13 +19,13 @@ outside stops all and deletes the roster. Bare `crew stop` is refused.
 
 **Blocked by:** 03 (session module)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] With the fake `claude` and herdr session `hk3test`: from an environment set up like solo `oc-alpha` (role general), `crew add tester` starts `oc-alpha--tester` and writes a roster listing `oc-alpha` (general) and `oc-alpha--tester` (tester), responsibilities from role descriptions or `--responsibility`
-- [ ] Two more `crew add builder` give `builder` and `builder-2`
-- [ ] Unknown role, no `--team` outside a session, or a newline in `--responsibility` is refused and changes nothing
-- [ ] The member's first prompt has its label, role, team and the roster command; the roster already lists it when it starts
-- [ ] The teams folder holds a `.gitignore` of `*` in a project initialized before this change
-- [ ] `crew roster` inside a session shows the caller's label and live tabs; a captain without a tab shows as not live
-- [ ] `crew stop tester` stops it and removes it from the roster; bare `crew stop` is refused; `crew stop --all` from the captain keeps the captain; `crew stop --all --team alpha` from outside stops all and deletes the roster, even with no live tabs
-- [ ] README.md (crew add, roster, stop; resuming a crashed member by hand; projects running teams should set `{name}`-based `KEEPER_HANDOFF_PROMPT`/`KEEPER_STARTUP_PROMPT` naming `HANDOFF-{name}.md`, as omatic does, because the default prompts make every member write `HANDOFF.md`), docs/configuration.md (teams folder), docs/architecture.md (roster, identity rules), docs/testing.md updated
+- [x] With the fake `claude` and herdr session `hk3test`: from an environment set up like solo `oc-alpha` (role general), `crew add tester` starts `oc-alpha--tester` and writes a roster listing `oc-alpha` (general) and `oc-alpha--tester` (tester), responsibilities from role descriptions or `--responsibility`
+- [x] Two more `crew add builder` give `builder` and `builder-2`
+- [x] Unknown role, no `--team` outside a session, or a newline in `--responsibility` is refused and changes nothing
+- [x] The member's first prompt has its label, role, team and the roster command; the roster already lists it when it starts
+- [x] The teams folder holds a `.gitignore` of `*` in a project initialized before this change
+- [x] `crew roster` inside a session shows the caller's label and live tabs; a captain without a tab shows as not live
+- [x] `crew stop tester` stops it and removes it from the roster; bare `crew stop` is refused; `crew stop --all` from the captain keeps the captain; `crew stop --all --team alpha` from outside stops all and deletes the roster, even with no live tabs
+- [x] README.md (crew add, roster, stop; resuming a crashed member by hand; projects running teams should set `{name}`-based `KEEPER_HANDOFF_PROMPT`/`KEEPER_STARTUP_PROMPT` naming `HANDOFF-{name}.md`, as omatic does, because the default prompts make every member write `HANDOFF.md`), docs/configuration.md (teams folder), docs/architecture.md (roster, identity rules), docs/testing.md updated

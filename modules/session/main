@@ -4,7 +4,7 @@
 # label. Every herdr call is in herdr.sh.
 #
 # Usage (through the router, which exports HK3_ROOT and HK3_PROJECT_DIR):
-#   hk3 session start [--team <team>] --name <name> [--role <role>]
+#   hk3 session start [--team <team>] --name <name> [--role <role>] [--prompt <text>]
 #   hk3 session stop <label>
 #   hk3 session tabs
 set -euo pipefail
@@ -19,10 +19,11 @@ usage() {
 Usage: hk3 session <command>
 
 Commands:
-  start [--team <team>] --name <name> [--role <role>]
+  start [--team <team>] --name <name> [--role <role>] [--prompt <text>]
       Start an hk3 agent in a herdr tab. With --team it joins workspace
       <prefix>-<team> as <prefix>-<team>--<name>; without, it gets its own
-      workspace <prefix>-<name>.
+      workspace <prefix>-<name>. --prompt is the agent's first prompt (one
+      line).
   stop <label>
       End the agent in tab <label> (Claude exits through /exit), then close
       the tab if it is still open. Only labels with the project prefix.
@@ -98,12 +99,6 @@ launch_command() {
   printf '%s && exit' "$cmd"
 }
 
-require_prefix() {
-  [[ -n "${HK3_PROJECT_PREFIX:-}" ]] ||
-    die "session commands need a project prefix: set HK3_PROJECT_PREFIX in $PROJECT_CONF/config.env"
-  check_part HK3_PROJECT_PREFIX "$HK3_PROJECT_PREFIX"
-}
-
 # lock / unlock: one start at a time per herdr session, across projects and
 # callers (an agent's TMPDIR can differ from the operator's, so not TMPDIR).
 LOCK="/tmp/hk3-$(id -u)-session-$HK3_HERDR_SESSION.lock"
@@ -124,16 +119,19 @@ unlock() {
 }
 
 cmd_start() {
-  local team="" name="" role=""
+  local team="" name="" role="" prompt=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; team="$2"; shift 2 ;;
       --name) [[ $# -ge 2 && -n "$2" ]] || die "--name needs a value"; name="$2"; shift 2 ;;
       --role) [[ $# -ge 2 && -n "$2" ]] || die "--role needs a value"; role="$2"; shift 2 ;;
-      *) die "unknown argument: $1 (usage: hk3 session start [--team <team>] --name <name> [--role <role>])" ;;
+      --prompt) [[ $# -ge 2 && -n "$2" ]] || die "--prompt needs a value"; prompt="$2"; shift 2 ;;
+      *) die "unknown argument: $1 (usage: hk3 session start [--team <team>] --name <name> [--role <role>] [--prompt <text>])" ;;
     esac
   done
   [[ -n "$name" ]] || die "session start needs --name <name>"
+  # The launch is typed as one line; a line break would submit it early.
+  [[ "$prompt" != *[$'\n\r']* ]] || die "--prompt must be one line"
   check_part --name "$name"
   local args=(new agent claude) label team_label
   if [[ -n "$team" ]]; then
@@ -147,6 +145,7 @@ cmd_start() {
   fi
   args+=(--name "$name")
   [[ -n "$role" ]] && args+=(--role "$role")
+  [[ -n "$prompt" ]] && args+=(-- "$prompt")
 
   # shellcheck disable=SC2046
   ensure_server env $(unset_args)
@@ -214,9 +213,9 @@ cmd_tabs() {
 }
 
 case "${1:-}" in
-  start) shift; require_prefix; cmd_start "$@" ;;
-  stop) shift; require_prefix; cmd_stop "$@" ;;
-  tabs) shift; [[ $# -eq 0 ]] || die "usage: hk3 session tabs"; require_prefix; cmd_tabs ;;
+  start) shift; require_prefix session; cmd_start "$@" ;;
+  stop) shift; require_prefix session; cmd_stop "$@" ;;
+  tabs) shift; [[ $# -eq 0 ]] || die "usage: hk3 session tabs"; require_prefix session; cmd_tabs ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 1 ;;
 esac

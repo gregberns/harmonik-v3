@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+# crew — teams of hk3 agents: add and stop members, and the roster that lists
+# them. Agents start and stop only through `hk3 session`; this module never
+# calls herdr.
+#
+# Usage (through the router, which exports HK3_ROOT and HK3_PROJECT_DIR):
+#   hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]
+#   hk3 crew roster [--team <team>]
+#   hk3 crew stop <member>... | --all [--team <team>]
+#
+# Identity (lib/hk3.sh): inside an hk3 session (HK3_AGENT_ID set) the team is
+# always the caller's; outside one --team is required.
+set -euo pipefail
+
+# shellcheck source=lib/hk3.sh
+source "$HK3_ROOT/lib/hk3.sh"
+
+HK3="$ROOT/harmonik-v3"
+TEAMS_DIR="$PROJECT_CONF/teams"
+# Seconds add and stop wait for another crew command on the same team.
+LOCK_WAIT=120
+
+usage() {
+  cat <<EOF
+Usage: hk3 crew <command>
+
+Commands:
+  add <role> [--name <member>] [--responsibility <text>] [--team <team>]
+      Add a member to the team and start it (hk3 session start). The name
+      defaults to the role, with the next free number when taken (builder,
+      builder-2, ...); a taken --name is refused. The responsibility (one line) defaults to
+      the role's description. Inside an hk3 session the team is yours, and
+      the first add makes you its first member; outside one, --team is
+      required.
+  roster [--team <team>]
+      Print the team's roster, which members have a live herdr tab, and,
+      inside an hk3 session, your own label.
+  stop <member>... | --all [--team <team>]
+      Stop members (hk3 session stop) and remove them from the roster, also
+      when they have no tab. --all stops every member but you; from outside
+      a session it stops all and deletes the roster.
+
+Rosters live in $TEAMS_DIR/<team>.yaml.
+EOF
+}
+
+# --- Identity -------------------------------------------------------------------
+
+# in_session: true inside an hk3 session.
+in_session() { [[ -n "${HK3_AGENT_ID:-}" ]]; }
+
+# resolve_team <--team value or empty>: set TEAM, TEAM_LABEL and ROSTER.
+# Inside a session the team is the caller's, --team may only repeat it, and
+# the team label is the part of HK3_AGENT_ID before -- (team_label); it must
+# match what the current prefix gives, or members would be started under
+# another label than the roster's.
+resolve_team() {
+  local given="$1"
+  if in_session; then
+    TEAM="$(caller_team)"
+    [[ -n "$TEAM" ]] || die "you are an hk3 agent without a name ($HK3_AGENT_ID); crew commands need a named agent"
+    [[ -z "$given" || "$given" == "$TEAM" ]] ||
+      die "you are on team $TEAM; crew commands from inside a session work only on your own team"
+  else
+    [[ -n "$given" ]] || die "outside an hk3 session, pass --team <team>"
+    TEAM="$given"
+  fi
+  check_part team "$TEAM"
+  TEAM_LABEL="$(agent_label "$TEAM")"
+  if in_session; then
+    local own
+    own="$(team_label)"
+    [[ "$own" == "$TEAM_LABEL" ]] ||
+      die "your team label is $own (from HK3_AGENT_ID) but the project prefix gives $TEAM_LABEL; check HK3_PROJECT_PREFIX"
+  fi
+  ROSTER="$TEAMS_DIR/$TEAM.yaml"
+}
+
+# --- Roster ---------------------------------------------------------------------
+# <team>.yaml: team, label (the team label) and members (label, role,
+# responsibility). Rewritten whole on every change, under the team's lock.
+
+# ensure_teams_dir: the teams folder, kept out of git.
+ensure_teams_dir() {
+  mkdir -p "$TEAMS_DIR"
+  [[ -f "$TEAMS_DIR/.gitignore" ]] || echo '*' > "$TEAMS_DIR/.gitignore"
+}
+
+# lock / unlock: one add or stop at a time per team, so two adds never pick
+# the same name and no write drops another's change.
+LOCK=""
+lock() {
+  LOCK="$TEAMS_DIR/$TEAM.lock"
+  local i
+  for i in $(seq 1 $((LOCK_WAIT * 10))); do
+    if mkdir "$LOCK" 2>/dev/null; then
+      trap unlock EXIT
+      return 0
+    fi
+    sleep 0.1
+  done
+  die "another crew command holds $LOCK; if none is running, remove it"
+}
+unlock() {
+  [[ -n "$LOCK" ]] && rmdir "$LOCK" 2>/dev/null || true
+  LOCK=""
+  trap - EXIT
+}
+
+# roster_labels: the member labels on the roster, one per line.
+roster_labels() {
+  yq -r '.members[].label' "$ROSTER"
+}
+
+# roster_write <yq expression>: apply the expression to the roster (or to an
+# empty document if there is none yet) and replace the file.
+roster_write() {
+  local tmp="$ROSTER.tmp.$$"
+  if [[ -f "$ROSTER" ]]; then
+    yq "$1" "$ROSTER" > "$tmp"
+  else
+    yq -n "$1" > "$tmp"
+  fi
+  mv "$tmp" "$ROSTER"
+}
+
+# roster_add <label> <role> <responsibility>
+roster_add() {
+  L="$1" R="$2" S="$3" T="$TEAM" TL="$TEAM_LABEL" roster_write \
+    '.team = strenv(T) | .label = strenv(TL) | .members += [{"label": strenv(L), "role": strenv(R), "responsibility": strenv(S)}]'
+}
+
+# roster_remove <label>
+roster_remove() {
+  L="$1" roster_write 'del(.members[] | select(.label == strenv(L)))'
+}
+
+# --- Roles ----------------------------------------------------------------------
+
+role_file() { echo "$ROOT/config/roles/$1.yaml"; }
+
+check_role() {
+  [[ "$1" =~ ^[A-Za-z0-9_-]+$ && -f "$(role_file "$1")" ]] ||
+    die "unknown role: $1 (hk3 list roles)"
+}
+
+role_description() {
+  yq -r '.description // ""' "$(role_file "$1")"
+}
+
+# live_tabs: the labels of this project's open herdr tabs.
+live_tabs() {
+  "$HK3" session tabs
+}
+
+# first_prompt <label> <role>: the member's one-line first prompt.
+first_prompt() {
+  echo "You are $1, role $2, on team $TEAM (team label $TEAM_LABEL). Run \`hk3 crew roster\` to see your team."
+}
+
+# --- Commands -------------------------------------------------------------------
+
+cmd_add() {
+  local role="" name="" resp="" given_team=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name) [[ $# -ge 2 && -n "$2" ]] || die "--name needs a value"; name="$2"; shift 2 ;;
+      --responsibility) [[ $# -ge 2 ]] || die "--responsibility needs a value"; resp="$2"; shift 2 ;;
+      --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; given_team="$2"; shift 2 ;;
+      -*) die "unknown option: $1" ;;
+      *) [[ -z "$role" ]] || die "unexpected argument: $1"; role="$1"; shift ;;
+    esac
+  done
+  [[ -n "$role" ]] || die "usage: hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]"
+  check_role "$role"
+  [[ "$resp" != *[$'\n\r']* ]] || die "--responsibility must be one line"
+  [[ -n "$name" ]] && check_part --name "$name"
+  resolve_team "$given_team"
+  [[ -n "$resp" ]] || resp="$(role_description "$role")"
+
+  ensure_teams_dir
+  lock
+  # The first add from a solo agent makes it the team's first member, under
+  # its actual role.
+  if [[ ! -f "$ROSTER" ]] && in_session; then
+    roster_add "$HK3_AGENT_ID" "$HK3_ROLE" "$(role_description "$HK3_ROLE" 2>/dev/null || true)"
+  fi
+  # Taken: names on the roster and tabs of this team (a tab may be stale).
+  local taken=() label
+  while IFS= read -r label; do
+    [[ "$label" == "$TEAM_LABEL--"* ]] && taken+=("${label#"$TEAM_LABEL--"}")
+  done < <({ [[ -f "$ROSTER" ]] && roster_labels; live_tabs; } || true)
+  if [[ -n "$name" ]]; then
+    [[ " ${taken[*]-} " != *" $name "* ]] ||
+      die "$TEAM_LABEL--$name is taken (on the roster or a live tab; hk3 crew roster)"
+  else
+    name="$(next_free_name "$role" ${taken[@]+"${taken[@]}"})"
+  fi
+  label="$TEAM_LABEL--$name"
+  # Written before the start, so the member's first look at the roster
+  # finds itself.
+  roster_add "$label" "$role" "$resp"
+  if ! "$HK3" session start --team "$TEAM" --name "$name" --role "$role" \
+    --prompt "$(first_prompt "$label" "$role")"; then
+    die "$label is on the roster of team $TEAM but did not start; remove it with: hk3 crew stop $name${given_team:+ --team $TEAM}"
+  fi
+  unlock
+  echo "hk3: added $label ($role) to team $TEAM"
+}
+
+cmd_roster() {
+  local given_team=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; given_team="$2"; shift 2 ;;
+      *) die "usage: hk3 crew roster [--team <team>]" ;;
+    esac
+  done
+  resolve_team "$given_team"
+  in_session && echo "You are $HK3_AGENT_ID."
+  [[ -f "$ROSTER" ]] || die "team $TEAM has no roster ($ROSTER)"
+  local tabs
+  tabs=" $(live_tabs | tr '\n' ' ') "
+  echo "Team $TEAM (team label $TEAM_LABEL), roster $ROSTER"
+  echo "Members (label, role, live herdr tab, responsibility):"
+  local label role resp live
+  while IFS=$'\t' read -r label role resp; do
+    live="not live"
+    [[ "$tabs" == *" $label "* ]] && live="live"
+    printf '  %s\t%s\t%s\t%s\n' "$label" "$role" "$live" "$resp"
+  done < <(yq -r '.members[] | .label + "\t" + .role + "\t" + .responsibility' "$ROSTER")
+}
+
+# stop_member <label> <tabs>: stop the member's tab, if it has one, and take
+# it off the roster. A member without a tab is only taken off (it may run in
+# a plain terminal, which the operator closes by hand).
+stop_member() {
+  if [[ "$2" == *" $1 "* ]]; then
+    "$HK3" session stop "$1" || { echo "hk3: could not stop $1; it stays on the roster" >&2; return 1; }
+  else
+    echo "hk3: $1 has no herdr tab; taking it off the roster (if it runs in a plain terminal, close it by hand)" >&2
+  fi
+  lock
+  roster_remove "$1"
+  unlock
+}
+
+cmd_stop() {
+  local all="" given_team="" names=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) all=1; shift ;;
+      --team) [[ $# -ge 2 && -n "$2" ]] || die "--team needs a value"; given_team="$2"; shift 2 ;;
+      -*) die "unknown option: $1" ;;
+      *) names+=("$1"); shift ;;
+    esac
+  done
+  [[ -n "$all" || ${#names[@]} -gt 0 ]] ||
+    die "name the members to stop, or pass --all (usage: hk3 crew stop <member>... | --all [--team <team>])"
+  [[ -z "$all" || ${#names[@]} -eq 0 ]] || die "pass member names or --all, not both"
+  resolve_team "$given_team"
+  if [[ ! -f "$ROSTER" ]]; then
+    [[ -n "$all" ]] && { echo "hk3: team $TEAM has no roster; nothing to stop" >&2; return 0; }
+    die "team $TEAM has no roster ($ROSTER)"
+  fi
+
+  local on=" $(roster_labels | tr '\n' ' ') " labels=() n label
+  if [[ -n "$all" ]]; then
+    while IFS= read -r label; do
+      in_session && [[ "$label" == "$HK3_AGENT_ID" ]] && continue
+      labels+=("$label")
+    done < <(roster_labels)
+  else
+    # A member is named by its member name (tester) or its full label.
+    for n in "${names[@]}"; do
+      label="$TEAM_LABEL--$n"
+      [[ "$on" == *" $n "* ]] && label="$n"
+      [[ "$on" == *" $label "* ]] || die "$n is not on the roster of team $TEAM (hk3 crew roster)"
+      ! in_session || [[ "$label" != "$HK3_AGENT_ID" ]] ||
+        die "you cannot stop yourself ($label); end your own session with /exit"
+      labels+=("$label")
+    done
+  fi
+
+  local tabs failed=0
+  tabs=" $(live_tabs | tr '\n' ' ') "
+  for label in ${labels[@]+"${labels[@]}"}; do
+    stop_member "$label" "$tabs" || failed=1
+  done
+  [[ "$failed" == 0 ]] || die "some members did not stop; they stay on the roster"
+  if [[ -n "$all" ]] && ! in_session; then
+    # Re-read under the lock: a member added while this stop ran stays, and
+    # so does its roster.
+    lock
+    local left
+    left="$(roster_labels | tr '\n' ' ')"
+    if [[ -z "${left// /}" ]]; then
+      rm -f "$ROSTER"
+      unlock
+      echo "hk3: team $TEAM stopped; roster deleted"
+    else
+      unlock
+      die "members were added while stopping and are still on the roster: ${left% }; run hk3 crew stop --all --team $TEAM again"
+    fi
+  fi
+}
+
+case "${1:-}" in
+  add) shift; require_prefix crew; cmd_add "$@" ;;
+  roster) shift; require_prefix crew; cmd_roster "$@" ;;
+  stop) shift; require_prefix crew; cmd_stop "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac

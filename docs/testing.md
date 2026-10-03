@@ -180,6 +180,59 @@ SessionEnd hook in the scratch project's `.claude/settings.json` logs
 Clean up: `herdr session stop hk3test`, `herdr session delete hk3test`,
 remove the scratch folders.
 
+## Crew module
+
+Same setup as the session module: `hk3test`, the fake `claude` first on
+PATH, a scratch repo with `HK3_PROJECT_PREFIX=oc` and no `teams/` folder
+yet. To see what a member sees at its start, add after the fake's `cat`
+line `[[ -n "${FAKE_ROSTER:-}" ]] && "$FAKE_ROSTER" crew roster > "$FAKE_LOG/$id.roster" 2>&1`
+and export `FAKE_ROSTER=<repo>/harmonik-v3` in the `.zprofile`.
+
+Act as a solo captain by prefixing commands with
+`HK3_AGENT_ID=oc-alpha HK3_AGENT_NAME=alpha HK3_ROLE=general` (inside Claude
+Code the shell already carries `CLAUDECODE` and `CLAUDE_CODE_*`):
+
+- Refused, with `.harmonik-v3/` unchanged (`ls`, `git status`): `crew add nosuch`;
+  `crew add tester` without the captain variables and without `--team`;
+  `--responsibility $'a\nb'`; `--team bravo` from the captain; `--name a--b`.
+- `crew add tester`: starts `oc-alpha--tester` in workspace `oc-alpha`;
+  `teams/alpha.yaml` lists `oc-alpha` (general) then `oc-alpha--tester`
+  (tester) with the roles' descriptions; `teams/.gitignore` is `*` and
+  `git status --ignored` shows the folder ignored. The fake's arguments end
+  with the first prompt (label, role, team, `hk3 crew roster`) and its
+  environment has no leaked value (as in the session check).
+- Two more `crew add builder` (one with a `--responsibility` holding `$`,
+  quotes and `&`): `builder` and `builder-2`, the text stored verbatim;
+  `$FAKE_LOG/oc-alpha--builder-2.roster` starts with
+  `You are oc-alpha--builder-2.` and lists it as live, and `oc-alpha` (no
+  tab) as not live. Two adds of one role at once (`&`, `wait`) give two
+  names. `crew add builder --name builder` is refused (taken); the roster
+  is unchanged.
+- `crew roster` as the captain prints `You are oc-alpha.`; `--team alpha`
+  from outside prints the same roster without it.
+- `crew stop tester`: `ctrl+c` and `/exit` in its `.keys`, gone from the
+  roster. Refused: bare `crew stop`, a name not on the roster, the caller's
+  own label, `--all` with names. A member whose tab was closed with
+  `session stop` is taken off with a note.
+- `crew stop --all` as the captain: every tab stops, the roster keeps only
+  `oc-alpha`. `crew stop --all --team alpha` from outside: stops the rest,
+  notes `oc-alpha` has no tab, deletes the roster; with every tab already
+  closed it still deletes it; with no roster it exits 0 with a notice.
+  Race: `crew stop --all --team bravo &`, `sleep 0.3`, `crew add reviewer
+  --team bravo`, `wait`: the stop exits 1 naming `oc-bravo--reviewer`, and
+  the roster still lists it.
+- As the captain with `HK3_PROJECT_PREFIX=xx` in the shell, `crew roster`
+  is refused (team label `oc-alpha` from `HK3_AGENT_ID` against `xx-alpha`).
+- `crew add tester --team bravo --name crash` from outside: exits 1, the
+  member stays on the roster, the message points to `crew stop`.
+- No herdr call outside the adapter (the grep in the session section).
+
+**Live.** In a fresh `hk3test` without the fake, run
+`HK3_AGENT_ID=oc-live HK3_AGENT_NAME=live HK3_ROLE=general hk3 crew add tester`,
+answer the trust prompt (`herdr --session hk3test pane send-keys <pane> down enter`)
+and read the pane: the tester runs `hk3 crew roster` on its own and names
+itself and `oc-live`. Clean up with `hk3 crew stop --all --team live`.
+
 ## Live session
 
 Some behavior shows only in an interactive session: the status line,

@@ -132,10 +132,14 @@ These rules bind every ticket.
 
 ### 2. Session module (herdr)
 
-- Two commands: `hk3 session start [--team <team>] --name <name> [--role <role>]`
+- Two commands: `hk3 session start [--team <team>] --name <name> [--role <role>] [--prompt <text>]`
   and `hk3 session stop <label>`, plus `hk3 session tabs` (the plain list of
   live agent labels) that the crew module uses instead of asking herdr. The operator views agents with `herdr session attach hk3`
-  (README). *Rationale: the minimum to start and clean up agents.*
+  (README). `--prompt` (one line, refused with a line break) is passed to
+  claude after `--` as its first prompt; it is how the crew module delivers
+  decision 4's first prompt while going only through `hk3 session` (added
+  during ticket 04, pending the operator's confirmation). *Rationale: the
+  minimum to start and clean up agents.*
 - All agents live in one herdr session, named by `HK3_HERDR_SESSION`
   (default `hk3`). `session` and `crew` commands require
   `HK3_PROJECT_PREFIX`, so workspace labels from different projects do not

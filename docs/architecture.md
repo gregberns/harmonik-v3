@@ -12,6 +12,7 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 | `modules/<name>/` | One module per concern. `main`, when present and executable, is its command entrypoint. |
 | `modules/keeper/` | Keeper: `plugin/` hands off and restarts a session at a token threshold; `defaults.sh` holds the `KEEPER_*` defaults. No commands. |
 | `modules/session/` | `hk3 session start/stop/tabs`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
+| `modules/crew/` | `hk3 crew add/roster/stop`: teams and their rosters, through `hk3 session`. |
 | `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin. |
 | `scripts/statusline` | Claude status line: agent badge and role, then the project's own status line. |
 | `config/base.yaml`, `config/roles/*.yaml` | Role definitions. |
@@ -36,13 +37,14 @@ naming helpers, and calls the launcher or other modules only through
 router, then modules, then the library. No module reads another module's
 files.
 
-Modules today: `keeper` (no commands; the core launch loads its plugin) and
-`session` (agents in herdr, below).
+Modules today: `keeper` (no commands; the core launch loads its plugin),
+`session` (agents in herdr) and `crew` (teams and rosters), below.
 
 ## Session module (herdr)
 
-`hk3 session start [--team <team>] --name <name> [--role <role>]` runs an
-hk3 agent in [herdr](https://herdr.dev); `hk3 session stop <label>` ends it;
+`hk3 session start [--team <team>] --name <name> [--role <role>] [--prompt <text>]`
+runs an hk3 agent in [herdr](https://herdr.dev), with `--prompt` as its
+one-line first prompt (passed to claude after `--`); `hk3 session stop <label>` ends it;
 `hk3 session tabs` prints the labels of the open tabs with the project
 prefix, for other modules to check which labels are taken. A listed label is
 a tab, not proof of a running agent. Stop refuses a label without the
@@ -100,6 +102,52 @@ prefix, so it never touches the operator's own tabs.
   `build/roles/<role>/` and swaps it in with `mv`, or drops it if nothing
   changed, so launches of one role at the same moment do not break each
   other or the plugin folder of running agents.
+
+## Crew module (teams and rosters)
+
+`hk3 crew add <role> [--name <member>] [--responsibility <text>] [--team <team>]`
+adds one member to a team, `hk3 crew roster [--team <team>]` prints the
+team, and `hk3 crew stop <member>... | --all [--team <team>]` removes
+members. Crew starts and stops agents only through `hk3 session` (by the hk3
+script's absolute path) and learns which labels have a tab from
+`hk3 session tabs`; it never calls herdr. It decides nothing about the work.
+
+- **Identity rules.** Read mechanically from the environment the launcher
+  sets (see [configuration.md](configuration.md#agent-names-and-labels)):
+  inside an hk3 session (`HK3_AGENT_ID` set) the team is the caller's
+  (`HK3_TEAM`, else `HK3_AGENT_NAME`), and `--team` may only repeat it, so an
+  agent cannot change another team. Inside a session the team label is the
+  part of `HK3_AGENT_ID` before `--`; a command refuses to run when that
+  differs from what the current prefix gives. Outside a session `--team` is
+  required and the team label is `<prefix>-<team>`.
+  An agent cannot stop itself (it ends with `/exit`). The session module's
+  clean environment keeps a member from inheriting its captain's identity.
+- **Roster.** One file per team, `<project>/.harmonik-v3/teams/<team>.yaml`:
+  `team`, `label` (the team label) and `members`, each with `label`, `role`
+  and `responsibility`. hk3 rewrites it whole (temp file, then `mv`) on every
+  change. The teams folder gets a `.gitignore` of `*` when hk3 creates it.
+- **Add.** The member name defaults to the role, with the next free number
+  when taken (`builder`, `builder-2`); a taken `--name` is refused. Taken
+  means on the roster or a tab of the team, stale or not. The first add from a solo agent writes the
+  roster with the caller first, under its actual role (`HK3_ROLE`). Name
+  choice, roster write and start run under a lock (`teams/<team>.lock`, a
+  `mkdir`), so two adds never pick one name and no write drops another's
+  member. The roster is written before the start, so the member's first look
+  finds itself. Its first prompt, from one fixed template, gives its label,
+  role and team and says to run `hk3 crew roster`. A failed start leaves the
+  member on the roster with a pointer to `crew stop`; there is no rollback.
+- **Roster command.** Prints the members with which have a live tab (from
+  `hk3 session tabs`) and, inside a session, the caller's own label. Live
+  means a herdr tab only: a captain in a plain terminal shows as not live.
+- **Stop.** Each named member (member name or full label, which must be on
+  the roster) is stopped with `hk3 session stop` and then taken off the
+  roster under the lock. A member with no tab is taken off with a note.
+  `--all` stops every member but the caller; from outside a session it stops
+  all and deletes the roster, which also clears a stale one; the delete
+  re-reads the roster under the lock, and if a member was added meanwhile it
+  keeps the roster and names that member. Bare
+  `crew stop` is refused, so an agent cannot stop its whole team by
+  accident.
 
 ## What a launch does
 
