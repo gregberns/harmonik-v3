@@ -85,6 +85,29 @@ Project setup:
 
 ## Implementation Decisions
 
+### 0. Structure and size (operator: "don't over build"; "no big bundle of interlinked code")
+
+These rules bind every ticket.
+
+- **One concern per module.** keeper: handoff and restart. session: running
+  agents in herdr. crew: team definitions and rosters. Shared library:
+  settings, project resolution and naming only.
+- **herdr lives in one place.** Only the session module calls herdr. Inside
+  it, every herdr call sits in one adapter file with a handful of
+  operations (ensure server, find or create workspace, open tab, type
+  command, list tabs, close tab). herdr ids, JSON shapes and flags never
+  leave that file. Replacing herdr means rewriting that file and nothing
+  else.
+- **Dependencies point one way:** router → modules → shared library. The
+  crew module starts and stops agents only through `hk3 session`, never
+  through herdr, and the session module knows nothing about crews or
+  rosters. No module reads another module's files.
+- **Build only what a ticket asks.** No speculative options, flags or
+  extension points. If a ticket seems to need more than its acceptance
+  criteria, stop and ask the operator.
+- **Bash for now.** The operator plans to rewrite this as real code later,
+  so module seams matter more than clever bash.
+
 ### 1. hk3 as a router
 
 - The CLI keeps its core commands (`init`, `new|resume agent claude`,
@@ -109,8 +132,8 @@ Project setup:
 ### 2. Session module (herdr)
 
 - Two commands: `hk3 session start [--team <team>] --name <name> [--role <role>]`
-  and `hk3 session stop <label>`, plus an internal tab listing used by the
-  crew module. The operator views agents with `herdr session attach hk3`
+  and `hk3 session stop <label>`, plus `hk3 session tabs` (the plain list of
+  live agent labels) that the crew module uses instead of asking herdr. The operator views agents with `herdr session attach hk3`
   (README). *Rationale: the minimum to start and clean up agents.*
 - All agents live in one herdr session, named by `HK3_HERDR_SESSION`
   (default `hk3`). `session` and `crew` commands require

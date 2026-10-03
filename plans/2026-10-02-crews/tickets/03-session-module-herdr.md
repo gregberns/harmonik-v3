@@ -13,13 +13,17 @@ runs the hk3 script by absolute path, and ends with `&& exit`. It then
 checks the tab still exists. Start refuses a label that already has a tab.
 `hk3 session stop <label>` clears the input, sends `/exit`, waits a grace
 period, closes the tab if still open, and closes an emptied workspace; a
-missing label exits 0 with a notice. An internal tab listing is provided for
-the crew module. Apply the spike's findings.
+missing label exits 0 with a notice. `hk3 session tabs` prints the live
+agent labels for the crew module. Follow spec decision 0: every herdr call
+lives in one adapter file inside the module, and nothing herdr-specific
+leaves it. Apply the spike's findings.
 
 **Blocked by:** 01 (spike), 02 (router and team names)
 
 **Status:** ready-for-agent
 
+- [ ] All herdr calls are in the module's adapter file; no other file in the repo invokes `herdr`
+- [ ] `session tabs` lists live agent labels, one per line
 - [ ] Test setup per docs/testing.md: herdr session `hk3test` started with the fake `claude` first on PATH; `command -v claude` in a pane shows the fake
 - [ ] `session start --team alpha --name builder` creates workspace `oc-alpha` with one tab `oc-alpha--builder` (no stray tab), running the fake in the project root
 - [ ] A second start in the team adds a tab to the same workspace; solo `--name bravo` gets workspace `oc-bravo`; a duplicate label is refused

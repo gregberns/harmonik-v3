@@ -10,7 +10,7 @@ role, with the next free number when taken. Under a simple lock in the
 teams folder, hk3 picks the name, writes the roster, then starts the member
 with the one-line first prompt (label, role, team, run `hk3 crew roster`).
 The teams folder gets a `.gitignore` of `*` when created. `hk3 crew roster
-[--team]` prints the roster, live herdr tabs, and the caller's label.
+[--team]` prints the roster, which members are live (from `hk3 session tabs`), and the caller's label. The crew module never calls herdr.
 `hk3 crew stop <member>... | --all [--team]` stops members through
 `hk3 session stop` and removes them from the roster, also when they have no
 tab (with a note); `--all` from inside a session keeps the caller, from

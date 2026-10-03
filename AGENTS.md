@@ -41,6 +41,9 @@ Keep it under 60 lines. When a section grows past a few lines, move it to
 - Scripts are bash with `set -euo pipefail`; config handling uses `yq`/`jq`.
 - `HK3_*` settings are the launcher's and `KEEPER_*` settings are keeper's.
   A new keeper setting must be read with a literal `$.env.get("NAME")`.
+- Build only what a ticket or the operator asks; no speculative options.
+  One concern per module; modules talk through the `hk3` CLI; only the
+  session module calls herdr.
 - Nothing is installed into target projects or `~/.claude`. Everything loads
   per launch via `--plugin-dir` and `--settings`.
 
