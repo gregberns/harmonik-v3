@@ -6,6 +6,7 @@
 # Skills from the library in skills/ that every role gets.
 skills:
   - handoff
+  - crew
 
 # Claude Code settings, emitted as JSON and passed via `claude --settings`.
 # Any key valid in a Claude settings.json can go here.

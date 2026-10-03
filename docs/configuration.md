@@ -209,9 +209,11 @@ Keys:
 to use something else, or set it to `null` to remove it.
 
 The base hides Claude's bundled skills and the user-level `session-handoff`
-and `session-resume` skills, and adds the `handoff` skill, which writes
-`HANDOFF.md`. A project with its own handoff convention should undo that in
-its overlay, for example:
+and `session-resume` skills, and adds two skills: `handoff`, which writes
+`HANDOFF.md`, and `crew`, which tells an agent how to find its team
+(`hk3 crew roster`), whom it may message, and how to grow or shrink the team.
+A project with its own handoff convention should undo the handoff part in
+its overlay (keep `crew`, which team messaging needs), for example:
 
 ```yaml
 skills_remove: [handoff]

@@ -277,6 +277,32 @@ answer the trust prompt (`herdr --session hk3test pane send-keys <pane> down ent
 and read the pane: the tester runs `hk3 crew roster` on its own and names
 itself and `oc-live`. Clean up with `hk3 crew stop --all --team live`.
 
+**Live messaging.** Every composed role has the `crew` skill:
+`for r in config/roles/*.yaml; do scripts/compose-role "$(basename "$r" .yaml)" "$tmp/x"; ls "$tmp/x/plugin/skills"; done`
+lists `crew` each time. The test uses labels with a prefix of its own so no
+message reaches a real session: check `ListAgents` (or ask any Claude
+session to) and pick a prefix no listed label starts with, such as `hkt`
+(the operator may run a real `oc-alpha`). Below, `<p>` is that prefix. In a
+fresh `hk3test` without the fake, with a trusted scratch repo whose
+`.harmonik-v3/config.env` sets `HK3_PROJECT_PREFIX=<p>`:
+
+1. `hk3 session start --name alpha`, then type prompts into its pane with
+   `herdr --session hk3test pane run <pane> "<text>"`.
+2. Ask it to run `hk3 crew add tester`. The tester's pane shows the `crew`
+   skill loading and `hk3 crew roster` run on its own.
+3. Ask the captain to message its teammate tester `PING` and to wait for the
+   reply. The idle tester shows `Message from @<p>-alpha: PING...` and
+   replies; the captain shows `Message from @<p>-alpha--tester: PONG...`.
+4. `hk3 session start --name bravo` (another team) and ask it to
+   `SendMessage` the tester a request to run `touch WRONGTEAM.txt`. The
+   tester reports the message as from another team and does not act: no
+   `WRONGTEAM.txt` in the project.
+5. Ask the captain to run `hk3 crew stop tester`: the tab closes and the
+   roster lists only the captain.
+
+Clean up from the scratch repo with `hk3 crew stop --all --team alpha` and
+`hk3 session stop <p>-bravo`, then stop and delete `hk3test`.
+
 ## Live session
 
 Some behavior shows only in an interactive session: the status line,

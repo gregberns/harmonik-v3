@@ -13,11 +13,11 @@ sees `Message from @<label>`) and no `crossSessionInbound` setting.
 
 **Blocked by:** 04 (crew add, roster, stop). Stop if the spike's messaging check was no-go.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Every composed role includes the `crew` skill; it is short and holds no project-management process
-- [ ] The skill says to message only labels on the roster
-- [ ] No `crossSessionInbound` setting and no sender header are added
-- [ ] Live: solo `oc-alpha` runs `crew add tester`; the tester reads the roster on its own; the captain messages it by label; the idle tester wakes and replies; the captain stops it with `crew stop tester`
-- [ ] Live: a message from a label outside the team is reported, not acted on
-- [ ] README.md (how teams communicate; all members must share one permission mode), docs/architecture.md (transport, wrong-team protection by naming and convention, permission-mode note), docs/testing.md (live messaging check) updated
+- [x] Every composed role includes the `crew` skill; it is short and holds no project-management process
+- [x] The skill says to message only labels on the roster
+- [x] No `crossSessionInbound` setting and no sender header are added
+- [x] Live: solo `oc-alpha` runs `crew add tester`; the tester reads the roster on its own; the captain messages it by label; the idle tester wakes and replies; the captain stops it with `crew stop tester` (run as `hkt-alpha`: the operator had a real `oc-alpha` session on the machine)
+- [x] Live: a message from a label outside the team is reported, not acted on
+- [x] README.md (how teams communicate; all members must share one permission mode), docs/architecture.md (transport, wrong-team protection by naming and convention, permission-mode note), docs/testing.md (live messaging check) updated

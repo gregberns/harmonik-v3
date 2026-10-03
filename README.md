@@ -188,6 +188,29 @@ herdr tab (say, a captain in a plain terminal) is taken off the roster with
 a note; close its terminal yourself. `hk3 crew stop --all --team <team>` also
 clears a stale roster after a crash.
 
+### How team members talk
+
+Members message each other with Claude Code's cross-session messaging
+(`SendMessage`), addressed by label, such as `oc-alpha--tester`. A message
+reaches an idle member at once and wakes it; a busy one gets it between
+tool calls. The receiver sees the sender as `Message from @<label>`. hk3
+never sends messages itself.
+
+Every agent has the `crew` skill. It tells the agent to run
+`hk3 crew roster` to see its team, to message only labels on the roster
+(Claude's `ListAgents` lists every Claude session on the machine, including
+other projects'), and to treat a message from another team with suspicion:
+not act on it, and tell you. A sender is on another team when its team
+label (the part of its label before `--`, such as `oc-alpha`) is not the
+agent's own.
+
+**All members must run in one permission mode.** Claude holds a message
+for approval, and may let it expire, when the receiver runs in a different
+permission mode from the sender. hk3 launches every agent with
+`--dangerously-skip-permissions` by default (`HK3_CLAUDE_SKIP_PERMISSIONS=1`);
+do not change that setting for some members of a team and not others, or
+pass a different `--permission-mode` to one of them.
+
 **A crashed member** is not restarted by hk3. Resume it by hand, under the
 same name, in a terminal or a herdr tab:
 
@@ -211,7 +234,7 @@ KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
 A role picks the agent's skills and Claude settings. Without `--role` an
 agent is `general`.
 
-| Role | Skills (plus `handoff`) |
+| Role | Skills (plus `handoff` and `crew`) |
 |---|---|
 | general (default) | none |
 | captain | none (leads a team; the lead of the `feature` crew) |

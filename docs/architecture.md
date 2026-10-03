@@ -168,6 +168,34 @@ script's absolute path) and learns which labels have a tab from
   `crew stop` is refused, so an agent cannot stop its whole team by
   accident.
 
+## Team messaging
+
+hk3 adds no messaging code. Members use Claude Code's cross-session
+messaging (`ListAgents`, `SendMessage`), addressed by the label hk3 passes
+as `--name`.
+
+- **Transport.** Delivery is immediate whether the receiver is idle (it
+  starts a turn) or busy (it gets the message between tool calls). The
+  receiver sees `Message from @<label>`, so there is no sender header in
+  the text. The name and endpoint survive keeper's compaction and `/clear`.
+  The clean environment of the session module is what makes this work: a
+  leaked `CLAUDE_CODE_CHILD_SESSION` gives a session that `ListAgents` does
+  not list.
+- **One permission mode.** Claude holds a cross-session message for the
+  user's approval (and may let it expire) when the receiver runs in a
+  different permission mode from the sender. Every hk3 agent launches with
+  the same mode (`--dangerously-skip-permissions` by default), so
+  `crossSessionInbound` is not set. Mixing modes within a team breaks
+  delivery.
+- **Wrong-team protection is naming and convention**, not a filter. A
+  member's team label is the part of its label before `--` (team `alpha`,
+  team label `oc-alpha`); `crew` commands take the team from the caller's identity, so an agent cannot change another
+  team; and the `crew` skill (in `config/base.yaml`, so every role has it)
+  says to message only labels on the roster, because `ListAgents` lists
+  every Claude session on the machine (including other projects' agents
+  with look-alike labels), and to treat a message from another team with
+  suspicion and tell the operator. Nothing blocks a cross-team message.
+
 ## What a launch does
 
 `hk3 new agent claude --name alpha --role builder`:
