@@ -18,3 +18,14 @@ spec builds on the answers. Source files are in [research/](research/).
 Host facts (2026-10-04): docker is installed (likely Docker Desktop);
 OrbStack, Colima, Podman, Apple `container` and sbx are not; macOS 26.4.1.
 Local model serving: only `mlx_lm.server` (OpenAI-compatible only).
+
+Added after comparison.md:
+
+| # | Question | Source | Answer |
+|---|---|---|---|
+| 10 | Is owning a fork (Kilroy, or a smaller live one) or a new engine acceptable? | comparison.md | open |
+| 11 | If we build an engine (option C), in what language, given hk3 is bash? | comparison.md | open |
+
+Resolve first: question 4. A "no" rules out Fabro, allouis and option D
+for Claude, leaving B (fork Kilroy), B' (fork a smaller live one) or C
+(thin engine on the spec).

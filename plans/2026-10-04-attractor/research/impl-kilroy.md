@@ -8,8 +8,8 @@ root unless noted. Line numbers are from `b55fb0f`.
 
 Kilroy is a Go CLI (`kilroy attractor run|resume|status|stop|validate|ingest|serve`), MIT-licensed,
 that runs StrongDM Attractor DOT pipelines in a git repo. Each run gets its own git worktree and run
-branch, with one commit per node, and logs run events to CXDB (StrongDM's execution DB, run as a
-local Docker container). Most of the Attractor spec is implemented: the DOT engine, the shape-based
+branch, with one commit per node, and can log run events to CXDB (StrongDM's execution DB, run as a
+local Docker container; needed only with a run.yaml config). Most of the Attractor spec is implemented: the DOT engine, the shape-based
 handler registry, conditions, the model stylesheet, fidelity, checkpoints/resume, human gates,
 parallel fan-out/fan-in, manager loop, the unified LLM client and its own coding-agent loop.
 
@@ -25,8 +25,8 @@ Every provider has to be configured with `backend: cli` or `backend: api`:
 | Target | Supported? | How |
 |---|---|---|
 | Claude Code on a subscription | Yes | Default CLI path removes `ANTHROPIC_API_KEY` so `claude` uses its OAuth login. The `--tmux` path passes `--bare`, which needs an API key. |
-| Codex on a ChatGPT subscription | Yes | If `OPENAI_API_KEY` is unset, Kilroy copies `~/.codex/auth.json` into an isolated `CODEX_HOME`. The `codex-app-server` provider is a second route. |
-| GLM | Yes | Built-in `zai` provider (z.ai coding endpoint) and `cerebras`, API backend only. |
+| Codex on a ChatGPT subscription | Partial | Login works: if `OPENAI_API_KEY` is unset, Kilroy copies `~/.codex/auth.json` into an isolated `CODEX_HOME`. But the default path is likely **read-only**: no `--sandbox`, no config.toml, and `codex exec` defaults to a read-only sandbox. The working routes are `--tmux` (workspace-write, needs an API key) or the `codex-app-server` provider (danger-full-access). Needs a test run. |
+| GLM | Yes on pay-as-you-go; Coding Plan route breaks Z.ai's terms | Built-in `zai` provider calls the Coding Plan endpoint `/api/coding/paas/v4`, but the plan is limited to listed tools and Kilroy is not one (models.md). Use `/api/paas/v4`. Also `cerebras`. API backend only, generic `openai` profile. |
 | DeepSeek | Partial | No built-in provider. Works as a custom OpenAI Chat Completions provider; the adapter parses DeepSeek's `reasoning_content`. |
 | Qwen served locally | Partial | Same custom-provider route (base URL plus a dummy API key environment variable). Not tested by the project. An Ollama backend exists only on an unmerged fork branch, unwired. |
 | ACP (Agent Client Protocol) | No | No code for it anywhere. |
@@ -59,8 +59,9 @@ maintenance status.
   - Full command list: README.md:410-420 and cmd/kilroy/main.go:166.
   - Installs via Homebrew tap `danshapiro/kilroy`, `go install`, or from source (README.md:12-30).
     Open issue #69 says the brew install fails.
-- **Required infrastructure.** CXDB at configured binary and HTTP endpoints, or autostarted via
-  `scripts/start-cxdb.sh` (Docker). Also an OpenRouter model-info JSON file for the model catalog
+- **Infrastructure.** CXDB at configured binary and HTTP endpoints, or autostarted via
+  `scripts/start-cxdb.sh` (Docker), is required only with a run.yaml config (README.md:199);
+  without `--config`, `attractor run` turns on `--no-cxdb` (cmd/kilroy/main.go:441-447). Also an OpenRouter model-info JSON file for the model catalog
   (README "Important" bullets; `modeldb.*` config). `--no-cxdb` exists (cmd/kilroy/main.go:248).
 
 **Attractor spec coverage**
@@ -162,6 +163,15 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
   `XDG_*` to a per-stage directory.
   - If `OPENAI_API_KEY` is set, it writes an apikey-mode `auth.json`.
   - Otherwise it copies `~/.codex/auth.json`, which is the subscription login (:1629-1667).
+  - An `OPENAI_API_KEY` anywhere in the environment quietly replaces the subscription login for
+    every Codex stage (:1628-1653).
+- **Sandbox on this path:** the template is `exec --json -m {{model}} -C {{worktree}}`
+  (builtin.go:16). Codex docs (https://developers.openai.com/codex/noninteractive): "By default,
+  `codex exec` runs in a read-only sandbox." No non-test code sets `sandbox_mode`, `--full-auto` or
+  `--dangerously-bypass-approvals-and-sandbox`, and config.toml is not copied (:1636). Commit
+  `f23e0dc` meant to "disable codex sandbox globally", but dropping the flag likely gives the
+  read-only default instead. So Codex stages on the default path probably cannot edit files
+  (plan-reviewer finding, confirmed in code 2026-10-04; not run).
 - The code comment warns that "gpt-5-codex and other exec-mode models aren't accessible under
   ChatGPT subscription auth". So which models work depends on the subscription.
 - The user's `~/.codex/config.toml` is deliberately not copied.
@@ -201,6 +211,13 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
     (api_client_from_runtime.go:30-36). A keyless local server needs a dummy key env var.
   - A test fixture uses an `acme` custom provider (engine/config_test.go:854-858).
 
+**Harness per model (Q5)**
+
+- Default path: the provider fixes the CLI (anthropic → claude, openai → codex, google → gemini).
+  GLM, DeepSeek and Qwen get only Kilroy's own loop with the generic `openai` profile
+  (builtin.go `zai` ProfileFamily "openai"). There is no model-tuned harness for them.
+- Only `--tmux` picks a CLI per node (`agent_tool`, tmux_handler.go:326-342).
+
 **Per-target answers**
 
 - **GLM.** Built-in `zai`: OpenAI Chat Completions at `https://api.z.ai`,
@@ -226,7 +243,11 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
 - **OpenCode.** Only through `--tmux` (cmd/kilroy/main.go:315, 130-139).
   - The template internal/attractor/agents/templates/opencode.go runs
     `opencode run --format json --pure --model <provider/model> --dir <wt> <prompt>`.
-  - It injects `OPENCODE_CONFIG_CONTENT` with an Anthropic apiKey from the environment.
+  - It injects `OPENCODE_CONFIG_CONTENT` with an Anthropic apiKey from the environment, and writes
+    only Anthropic provider config (opencode.go:49-57).
+  - It replaces every "." with "-" in the model (opencode.go:24; `glm-5.3` → `glm-5-3`) and adds
+    `anthropic/` when there is no slash (:26). So OpenCode cannot carry GLM, DeepSeek or Qwen
+    without code changes.
   - Selected by the node attribute `agent_tool=opencode` (tmux_handler.go:326-345).
 - **`--tmux` mode** (TmuxAgentHandler, internal/attractor/agents/tmux_handler.go). Runs
   claude, codex, gemini or opencode in tmux sessions on socket `kilroy`.
@@ -253,7 +274,7 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
   - Docker is used only to host CXDB (scripts/start-cxdb.sh).
 - `rust_sandbox_preflight.go` is a toolchain-path preflight for Rust stages, not an isolation
   layer.
-- `kilroy attractor serve` has no authentication and binds to localhost by default (README.md:470).
+- `kilroy attractor serve` has no authentication and binds to localhost by default (README.md:460; default 127.0.0.1:8080, README.md:443).
 - The two paths are easy to confuse:
   - The default CLI backend uses `providerspec/builtin.go:44`: `claude -p --dangerously-skip-permissions`, with no `--bare`, and `ANTHROPIC_API_KEY` is stripped (agent_router.go:1848). So it can use the subscription.
   - The `--tmux` path uses templates/claude.go:20, which has `--bare` and so needs an API key.
@@ -301,9 +322,11 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
 - **Repo facts.**
   - Created 2026-02-06. Last push 2026-04-27T17:57:05Z. Not archived and not a fork.
   - 221 stars, 52 forks, 8 watchers. The description is empty.
-- **Commits on main by month** (`git log origin/main`): 2026-02: 774, 2026-03: 158, 2026-04: 12,
+- **Commits on main by month** (`git log origin/main`, by author date; by committer date
+  767/165/12): 2026-02: 774, 2026-03: 158, 2026-04: 12,
   May through October: 0. Last commit `b55fb0f` 2026-04-27 by mattleaverton (PR #88). No other
-  branch has commits after 2026-04-27.
+  branch has commits after 2026-04-27; the newest other branch is
+  `origin/factory/live-20260408-092500-kilroy` (last commit 2026-04-08).
 - **Contributors** (GitHub API, by commits): DanMoraes 712, mattleaverton 52, mvanhorn 30,
   vadimcomanescu 17, danshapiro 15, glowforgedan 10, thewoolleyman 7, park9140 5, and 5 others
   with 2-3 each. 13 total.
@@ -330,9 +353,8 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
 
 - I did not build or run Kilroy. Everything above comes from reading the code and GitHub
   metadata.
-- **Codex default path without `--sandbox`:** with an isolated CODEX_HOME and no config.toml, what
-  sandbox and approval mode does `codex exec` actually use? If the default is read-only, edits
-  could fail. Unverified; no `--full-auto` or bypass flag was found in non-test code.
+- **Codex default path without `--sandbox`:** by Codex's docs it runs read-only (see section 2),
+  so edits likely fail. Not confirmed by a run.
 - Whether ChatGPT-subscription auth works for the models a graph names, and whether the
   `codex-app-server` route works under a ChatGPT login. Untested.
 - Whether a local OpenAI-compatible server (Ollama/vLLM/llama.cpp with Qwen) works end to end:
@@ -345,3 +367,4 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
   unverified.
 - Exact CLI flag compatibility with current `claude`, `codex` and `gemini` versions as of
   2026-10. The code was last touched in April 2026.
+- Options (adopt, fork, extend) are compared in comparison.md.

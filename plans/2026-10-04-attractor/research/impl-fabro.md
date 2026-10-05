@@ -2,9 +2,10 @@
 
 Date checked: 2026-10-04. Clone at HEAD `7fc0edbf8` (2026-10-03), workspace version
 `0.375.0-nightly.0` (`Cargo.toml:13`). Paths below are relative to the fabro clone
-unless prefixed with a lithos repo name (`lithos-petri/`, `lithos-pebble/`,
-`lithos-llm/`, `sandbox-driver/`, cloned from github.com/lithoscomputer at their
-`main` branches on 2026-10-04).
+unless prefixed with a local clone folder name (`lithos-petri/`, `lithos-pebble/`,
+`lithos-llm/`, `sandbox-driver/`). These are github.com/lithoscomputer/petri,
+/pebble, /lithos-llm and /sandbox-driver, cloned at their `main` branches on
+2026-10-04. petri, pebble and sandbox-driver are MIT; lithos-llm is Apache-2.0.
 
 ## Summary
 
@@ -30,11 +31,12 @@ Support matrix:
 
 | Target | Supported? | How |
 |---|---|---|
-| Claude Code on subscription | Partial / unverified | Only via ACP: `acp.command="claude-code-acp"` (Zed adapter). Fabro's own tests use `ANTHROPIC_API_KEY`; subscription login would rely on the adapter finding the host's Claude login (local sandbox keeps `HOME`). No Anthropic OAuth in the `api` backend. |
-| Codex on ChatGPT subscription | Yes (native) | `api` backend: `fabro provider login` runs OpenAI's Codex device-code OAuth, stores `vault:OPENAI_CODEX`, lithos-llm provider `openai-codex` posts to `chatgpt.com/backend-api/codex`. Fabro's loop, not the codex CLI. codex-acp via ACP is also possible (not in the current live test tier). |
+| Claude Code on subscription | Partial / unverified | Only via ACP: `acp.command="claude-code-acp"` (Zed adapter). Fabro's own tests use `ANTHROPIC_API_KEY`. Petri's ACP `authenticate` picks only API-key auth methods (`lithos-petri/crates/attractor/steps/src/acp/mod.rs` ~611-660), so the agent must already be logged in. Only the `local` sandbox (no isolation) keeps the host `HOME`; Docker has no host login, and the host sandbox strips `*_TOKEN`. **Subscription use and isolation pull against each other.** No Anthropic OAuth in the `api` backend. |
+| Codex on ChatGPT subscription | Yes, by reusing the Codex CLI OAuth client (terms unverified) | `api` backend: `fabro provider login` runs the device-code OAuth using the Codex CLI's own client id (`CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"`, `lib/foundation/fabro-auth/src/strategy.rs:9`), stores `vault:OPENAI_CODEX`, lithos-llm provider `openai-codex` posts to `chatgpt.com/backend-api/codex`. Fabro's loop, not the codex CLI. codex-acp via ACP is also possible (not in the current live test tier). |
 | Qwen local | Yes (config) | `api` backend: built-in `ollama` provider (disabled by default, models must be declared), or any OpenAI-compatible endpoint (vLLM/llama.cpp) as a custom `[llm.providers.<id>]` with `base_url`. Marked "no live tests" upstream. |
 | DeepSeek | Yes | Built-in `deepseek` provider (`DEEPSEEK_API_KEY`), also via Venice/Fireworks/OpenRouter/Bedrock. Provisional, not live-tested in lithos-llm. |
-| GLM (Z.ai) | Yes | Built-in `zai` provider, default endpoint is the **Coding Plan** URL; general API accounts override `base_url`. Not live-tested. |
+| GLM (Z.ai) | Yes on pay-as-you-go; the Coding Plan route breaks Z.ai's terms | Built-in `zai` provider defaults to the **Coding Plan** endpoint (`lithos-llm/src/catalog/builtin/zai.toml:6,15`), but the plan is limited to listed tools and Fabro is not one (models.md). Override `base_url` to `/api/paas/v4` for pay-as-you-go. Catalog default model is `glm-5.2` (`zai.toml:21`); GLM-5.3 needs a model block you declare yourself. Not live-tested. |
+| Harness tuned per model (Q5) | Only via ACP | On the `api` backend, Qwen (ollama), DeepSeek and GLM all get the generic `openai` agent profile (`zai.toml:28`, `deepseek.toml:24`, `ollama.toml:26`). Valid profiles are anthropic, claude-5, openai, gemini, kimi, gpt56 and gpt6 (`docs/public/core-concepts/models.mdx:142`). A model-specific harness for these three is reachable only over ACP (e.g. Qwen Code, OpenCode, dsh), which is untested upstream. |
 | ACP | Yes, as client | `backend="acp"` + `acp.command` or `acp.config`; local and Docker sandboxes only (not Daytona per docs). Tested products: claude-code-acp 0.16.2, Gemini CLI `--acp`. |
 | Sandbox | Yes | Per-run "environment": `local` (no isolation), `docker` (default), `daytona` (cloud VM), plus third-party sandbox-driver plugins. Parallel branches use git worktrees. |
 
@@ -179,7 +181,7 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
   Hosted Qwen: `qwen3.8-max`, `qwen3.8-27b` via Venice (`models.mdx:72-73`),
   Fireworks, OpenRouter, Bedrock. lithos-llm: Ollama "No live tests have run"
   (`lithos-llm/docs/provider-live-tests.md`, Ollama TODO).
-- **DeepSeek**: `deepseek-v4-flash`, `deepseek-v4-pro` (`models.mdx:63-64`),
+- **DeepSeek**: `deepseek-v4-flash`, `deepseek-v4-pro` (`models.mdx:63-64`; legacy IDs that still work, the first now serving V4.1-Flash, so the catalog is not current),
   `base_url = https://api.deepseek.com` (`lithos-llm/src/catalog/builtin/deepseek.toml:14`),
   live test TODO open.
 - **GLM**: `glm-5.2` on `zai` (`models.mdx:68`); "This is the Coding Plan
@@ -237,7 +239,7 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
 
 - Repo created 2026-03-13 (first commit 2026-02-19 `40be74094`); 1,677 stars,
   179 forks; pushed 2026-10-03 (`gh repo view`, 2026-10-04).
-- Commits per month (fabro repo): Apr 1271, May 711, Jun 74, Jul 567, Aug 441,
+- Commits per month (fabro repo, by author date; by commit date the reviewer counted Apr 1435, May 678, Jun 76, Jul 619, Aug 390, Sep 521, same trend): Apr 1271, May 711, Jun 74, Jul 567, Aug 441,
   Sep 519, Oct (3 days) 20. June dip coincides with work moving into lithos repos.
 - Contributors since 2026-04-04: Bryan Helmkamp 2522 + 343 (two emails), Scott
   Werner 401, bots ~260, everyone else single digits (33 total identities).
@@ -263,7 +265,8 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
    sandbox picks up a Claude subscription login (macOS keychain / `~/.claude`)
    is not tested by Fabro. In Docker it would need credentials mounted or a
    token passed via `acp.config` env.
-2. codex-acp with ChatGPT login under Fabro: only in May plan docs; not in the
+2. Whether OpenAI's terms allow Fabro's own loop to use the Codex CLI's OAuth client id against `chatgpt.com/backend-api/codex`; it could be blocked at any time.
+2b. codex-acp with ChatGPT login under Fabro: only in May plan docs; not in the
    current petri live tier.
 3. Whether ACP now works on Daytona via petri (petri claims "Host, Docker, and
    Daytona plugins"; Fabro docs say no). Not checked in code.
