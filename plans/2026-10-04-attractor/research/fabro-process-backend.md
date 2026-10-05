@@ -42,11 +42,14 @@ subscriptions, without ACP and without API-rate spend?
   process (`petri:crates/attractor/steps/src/acp/command.rs:17`). The host
   sandbox doesn't filter explicit spec env (`sandbox-driver-host/src/exec.rs:59-61`),
   so a vault key would silently switch the adapter to API billing.
-  That's inferred: Fabro/Petri itself wasn't run. A second untested risk
-  is compatibility: Petri's hand-written client is live-tested only with
-  `@zed-industries/claude-code-acp@0.16.2`, and 0.85.1 sends extra messages
-  (`_auth/status_update`, `configOptions`, `usage_update`). Whether Petri
-  tolerates unknown notifications is untested.
+  **Update (spike-fabro.md, 2026-10-04): confirmed hands-on.** With an empty
+  vault, `claude-agent-acp` 0.85.1 ran in Fabro on the Max login. It
+  reported "Claude Max", was metered against the plan windows, and wrote a
+  file. Petri tolerated 0.85.1's extra notifications (`_auth/status_update`,
+  `configOptions`, `usage_update`) on the happy path. Its live tests still
+  pin only `@zed-industries/claude-code-acp@0.16.2`.
+  - The model can be fixed per node with `ANTHROPIC_MODEL` in
+    `acp.config` env (haiku in the spike).
   - What it lacks is per-node model choice, because Petri never calls
     `session/set_config_option` (#649), and session reuse (#514).
   - The policy question is unchanged: SDK and ACP vs. `claude -p`.
@@ -86,6 +89,8 @@ subscriptions, without ACP and without API-rate spend?
    - Pass check: the adapter's `_auth/status_update` shows label
      "Claude Max", as in the POC.
    - Also check that Petri tolerates 0.85.1's extra notifications.
+   - **Done: passed** (spike-fabro.md). Codex via `codex-acp` on the ChatGPT
+     login passed too.
 2. Use command nodes where a node needs a specific model or must use the
    `claude` binary on PATH.
 3. Write the shim only if the operator wants the `claude -p` route for
@@ -385,11 +390,9 @@ Total: about 500-800 production lines in 6-9 files, plus tests.
 
 ## Open questions
 
-- Does Fabro's ACP path with the current `claude-agent-acp` run on the Max
-  login end to end, and how is its model chosen without
-  `set_config_option`? Petri never sends it, so the adapter default (opus
-  in the POC) applies unless an env var or settings file overrides it
-  (UNVERIFIED). About an hour in a scratch repo.
+- Answered by spike-fabro.md: Fabro's ACP path with `claude-agent-acp`
+  0.85.1 runs on the Max login, and `ANTHROPIC_MODEL` in `acp.config` env
+  picks the model.
 - Does a command node in the local sandbox find the macOS Keychain
   `claude` login (with `HOME` and `USER` kept but the env otherwise cleared)?
   About 10 minutes in a scratch repo with Fabro nightly, outside this repo.
