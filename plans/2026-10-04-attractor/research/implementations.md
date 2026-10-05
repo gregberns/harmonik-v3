@@ -63,7 +63,7 @@ upstream spec commits. Contributor counts come from `/contributors`.
 | [fabro-sh/fabro](https://github.com/fabro-sh/fabro) | Rust | MIT | 2026-10-03 | 1677/179 | 5416/23 | P(+A,L) | ACP agents (claude-code-acp tested), Codex via its own OAuth API loop (not the CLI), API providers; the cli backend was removed 2026-05-18 | page | See impl-fabro.md |
 | [allouis/attractor](https://github.com/allouis/attractor) | Go | Apache-2.0 | 2026-09-17 | 1/0 | 807/1 | P (+L via stylesheet) | **ACP** default (`claude-agent-acp`, `codex-acp`); native providers by model prefix; simulation | own | Nix install bundles the ACP adapters; web live view; releases up to v0.1.3 (2026-08-24) |
 | [2389-research/tracker](https://github.com/2389-research/tracker) | Go | MIT | 2026-10-04 | 21/5 | 1918/9 | P A L | `--backend native\|claude-code\|acp`; anthropic, openai, gemini, openai-compat | own | Started from an Attractor design (docs/plans/2026-03-04-attractor-design.md). Now uses its own `.dip` DSL ("Dippin"), not DOT. TUI, Slack bot, cost caps, Homebrew |
-| [citadelgrad/pascals-discrete-attractor](https://github.com/citadelgrad/pascals-discrete-attractor) | Rust | Apache-2.0 | 2026-10-04 | 7/2 | 218/2 | P A L | `codergen` nodes run the **Claude Code, Codex or Gemini CLI** (`llm_provider` is required on each); direct API handlers for OpenAI, Anthropic and Gemini | own | "PAS". Goal gates, budget guards, journal, monitor web UI |
+| [citadelgrad/pascals-discrete-attractor](https://github.com/citadelgrad/pascals-discrete-attractor) | Rust | MIT OR Apache-2.0 | 2026-10-04 | 7/4 | 218/2 | P (A, L as unwired libraries) | `codergen` nodes run the **Claude Code, Codex or Gemini CLI** (`llm_provider` is required on each). The OpenAI/Anthropic/Gemini adapters and agent loop are library crates not used by pipelines | own | "PAS". Goal gates, budget guards, journal, monitor web UI. Sequential only: multi-edge fan-out/fan-in, manager loop, fidelity and reasoning_effort are rejected. Deep dive: impl-harmonik-attractor.md (the operator's fork) |
 | [nnunley/strange-lettractor](https://github.com/nnunley/strange-lettractor) | let-go (Clojure) | Apache-2.0 | 2026-09-29 | 5/2 | 393/2 | P A L | native agent; external `claude` and `codex` agents (`--agent claude\|codex`); OpenAI, Anthropic, Gemini, openai-compat (llama.cpp, Ollama, vLLM) | own | Ships a conformance ledger against the upstream README. mparrett/strange-lettractor is a fork of it |
 | [TheFellow/fkyeah](https://github.com/TheFellow/fkyeah) | F# | MIT | 2026-09-13 | 18/1 | 120/1 | P A L | Anthropic, OpenAI, Gemini, OpenRouter; **ACP runtime** (stdio, WebSocket, HTTP+SSE) with presets such as `acp_preset="codex"` | page | About 1,020 tests, including a 208-test conformance suite; single binary |
 | [jleechanorg/dark-factory](https://github.com/jleechanorg/dark-factory) | Python per README (GitHub reports Rust) | none | 2026-10-04 | 8/2 | 916/3 | P (A,L?) | backends `ao` (default), `claude`, `codex`, `agy` (Antigravity), mock/echo | own | No LICENSE file (GitHub reports none) despite an MIT badge in README:4. Sealed holdout scenarios; mixes backends per node. Possibly what the page lists as DeepCreative/dark-factory (unverified) |
@@ -135,7 +135,10 @@ All checked 2026-10-04 with `gh api repos/<r>` (pushed_at, stargazers_count),
   Rust workspace with `attractor-{dot,llm,tools,agent,pipeline,cli,journal,monitor}`
   crates. Each `codergen` node shells out to the Claude Code, Codex or Gemini
   CLI, so it can run on a Claude subscription without an API key. It adds
-  six-layer verification (goal gates, budgets).
+  six-layer verification (goal gates, budgets). Correction after the hands-on
+  deep dive (impl-harmonik-attractor.md, 2026-10-04): the `attractor-llm`
+  and `attractor-agent` crates aren't wired into pipeline execution, and
+  parallel fan-out/fan-in is rejected at compile time.
 - **nnunley/strange-lettractor**: https://github.com/nnunley/strange-lettractor.
   Written in let-go, a Clojure dialect on Go. It implements all three specs with
   its own agent loop and LLM SDK, and keeps a requirements and evidence ledger

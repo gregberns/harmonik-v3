@@ -1,0 +1,38 @@
+# PAS spike evidence (2026-10-04, harmonik-attractor 50945da)
+
+## cargo test --workspace (summed over 64 test binaries)
+passed=1289 failed=0 ignored=2
+TEST_EXIT=0
+
+## spike.dot run 1: Claude node transcript (auth and plan windows)
+"apiKeySource":"none"
+"rate_limit_info":{"status":"allowed","resetsAt":1791183000,"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false,"unifiedWindows":{"five_hour":{"utilization":0.12,"resetsAt":1791183000}
+
+## spike.dot run 1: result
+2026-10-05T04:39:33.068826Z  INFO attractor_pipeline::handlers::codergen_handler: Claude Code completed node=plan provider="Claude Code" is_error=false has_cost=true model_actual="claude-haiku-4-5-20251001" input_tokens=41815 output_tokens=314 usage_cost_usd=0
+2026-10-05T04:39:49.264225Z  INFO attractor_pipeline::handlers::codergen_handler: Codex CLI completed node=build provider="Codex CLI" is_error=false has_cost=false input_tokens=43087 output_tokens=152
+2026-10-05T04:39:49.303215Z  INFO attractor_pipeline::handlers::tool_handler: Tool command completed node=check exit_code=0 stdout_len=9 stderr_len=0
+Pipeline completed
+Completed nodes: ["start", "plan", "build", "check", "done"]
+
+## stop then resume
+Stopped before build; resume with the same pas run command (Run 01a10a5c-b6cf-7850-b114-6ce4a84d6712)
+|  Resuming from checkpoint -- next node: build              |
+
+## codexbad.dot with inherited open stdin
+Error: Command timed out after 120000ms
+
+## codex exec direct, invalid model, stdin </dev/null (stdout)
+{"type":"thread.started","thread_id":"01a10a62-400d-77e2-a7b7-80fb3dbdf16c"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `no-such-model-xyz` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"error","message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'no-such-model-xyz' model is not supported when using Codex with a ChatGPT account.\"}}"}
+{"type":"turn.failed","error":{"message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'no-such-model-xyz' model is not supported when using Codex with a ChatGPT account.\"}}"}}
+
+## codexbad.dot with </dev/null (no gate)
+2026-10-05T04:46:29.213844Z  INFO attractor_pipeline::handlers::codergen_handler: Codex CLI completed node=build provider="Codex CLI" is_error=true has_cost=false
+Pipeline completed
+
+## codexbad-gate.dot with </dev/null (goal_gate=true)
+2026-10-05T04:51:27.783410Z  INFO attractor_pipeline::handlers::codergen_handler: Codex CLI completed node=build provider="Codex CLI" is_error=true has_cost=false
+Error: Goal gate unsatisfied: node 'build' did not reach SUCCESS

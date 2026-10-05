@@ -1,0 +1,11 @@
+digraph PasSpike {
+    goal = "Spike: Claude then Codex then a deterministic check"
+    start [shape="Mdiamond"]
+    plan  [label="Claude plans", llm_provider="claude", llm_model="haiku",
+           prompt="Use the Write tool to create word.txt containing exactly one lowercase word: banana. Then reply DONE."]
+    build [label="Codex builds", llm_provider="codex",
+           prompt="Read word.txt and create upper.txt containing that word in uppercase and nothing else. Then reply DONE."]
+    check [label="Check", type="tool", tool_command="test \"$(tr -d '[:space:]' < upper.txt)\" = BANANA && echo CHECK_OK", goal_gate=true]
+    done  [shape="Msquare"]
+    start -> plan -> build -> check -> done
+}

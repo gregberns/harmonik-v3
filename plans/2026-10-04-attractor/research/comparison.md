@@ -32,9 +32,13 @@ B gets a working engine sooner but leaves us maintaining a ~950-commit Go
 codebase written mostly by agents.
 
 Other implementations (implementations.md): three live ones are worth a
-spike before choosing, though we've read only their READMEs:
-- **citadelgrad/pascals-discrete-attractor** (Rust, Apache-2.0): runs the
-  real Claude Code, Codex and Gemini CLIs, so it's Kilroy's model but alive.
+spike before choosing. We've read only the READMEs of allouis and tracker;
+pascals (PAS) is now examined hands-on (impl-harmonik-attractor.md):
+- **citadelgrad/pascals-discrete-attractor** (Rust, MIT OR Apache-2.0): runs
+  the real Claude Code, Codex and Gemini CLIs, so it's Kilroy's model but
+  alive. It's now forked as gregberns/harmonik-attractor and examined
+  hands-on in impl-harmonik-attractor.md. It's sequential only (no fan-out),
+  with no ACP and no worktrees.
 - **allouis/attractor** (Go, Apache-2.0): ACP-first, using
   `claude-agent-acp` and `codex-acp`.
 - **2389-research/tracker** (Go, MIT, 9 contributors): `claude-code` and
@@ -66,7 +70,7 @@ Legend:
 |---|---|---|---|---|---|---|---|---|
 | Kilroy | **Yes**: `claude -p` (real binary, OAuth; `ANTHROPIC_API_KEY` stripped). `--tmux` mode needs an API key | Partial: `codex exec --json` with copied `~/.codex/auth.json`, but with no `--sandbox` it likely runs read-only (Codex default) and can't edit. `codex app-server` runs Codex as the model inside Kilroy's loop; Codex's built-in tools aren't disabled and run with full access if used (unverified). Needs a test | Partial: custom `openai_chat_completions` provider + base_url, own loop, generic `openai` profile | Partial: same route (adapter parses reasoning field) | Pay-as-you-go only: built-in `zai` defaults to the Coding Plan endpoint, which breaks Z.ai's terms for an unlisted tool | No | Worktree only. claude and gemini run with permissions bypassed; codex default path likely read-only; codex-app-server danger-full-access | Per provider (`backend: cli\|api`): provider fixes the CLI; only `--tmux` picks a CLI per node (`agent_tool`). Its OpenCode template can't carry GLM, DeepSeek or Qwen without code changes |
 | Fabro | **Works (policy grey)**: ACP via `claude-agent-acp` 0.85.1 on the Max login, verified hands-on (spike-fabro.md: "Claude Max", metered against the plan windows). The agent must be pre-logged-in, which works only in the unisolated `local` sandbox, and it loads the operator's `~/.claude` | **Works** via `codex-acp` 2.1.1 on the ChatGPT login, headless (spike-fabro.md). Fabro's own api loop instead reuses the Codex CLI's OAuth client id (terms UNVERIFIED) | Partial: Ollama or custom base_url, own loop with the generic `openai` profile. Or any ACP agent (Qwen Code, OpenCode) | Partial: built-in provider, "provisional", not live-tested, generic `openai` profile | Partial: built-in Z.ai defaults to the Coding Plan endpoint, which breaks Z.ai's terms for an unlisted tool; pay-as-you-go needs a `base_url` override | Yes (client): local and Docker only. No fs/terminal, no model switching, auto-allows permissions | Yes: local, docker (default), daytona, plugins; per run | Partly: the stylesheet sets only `backend` (api/acp); the ACP agent command (and so the harness and its model) is a per-node or graph attribute |
-| citadelgrad/pascals-discrete-attractor (README only) | Yes: local `claude` CLI, "no separate API key" | Yes: Codex CLI | No built-in route found | No built-in route found | No built-in route found | No | Not found (UNVERIFIED) | `llm_provider` per node (claude/codex/gemini) |
+| citadelgrad/pascals-discrete-attractor (verified hands-on, impl-harmonik-attractor.md) | **Yes**: `claude --safe-mode -p …`, `apiKeySource: none` on Max | **Yes**: `codex exec --json --yolo …` on the ChatGPT login | No built-in route | No built-in route | No built-in route | No | None: Claude `--dangerously-skip-permissions`, Codex `--yolo`, Gemini `--approval-mode yolo`; one shared workdir, no worktrees | `llm_provider` per node from a fixed set of 3; model passed through; `reasoning_effort` rejected |
 | allouis/attractor (README only) | Grey: `claude-agent-acp` using the `claude` login (same policy question as Fabro) | Via `codex-acp` (ChatGPT login; headless reuse verified in the Fabro spike) | Via any ACP agent, or a native provider by stylesheet | Same | Same | Yes (default backend) | Not found (UNVERIFIED) | Stylesheet routes nodes to ACP or native providers |
 | Spec-based (option C) | Yes by design: run `claude` (as hk3 already does) | Yes: `codex exec` (needs explicit `--sandbox workspace-write`, or the bypass flag inside an outer sandbox) / app-server | Via a Qwen-tuned harness (Qwen Code, OpenCode, Pi) on local Ollama/llama-server | Via dsh, Claude Code or OpenCode with a base URL | Via Claude Code / Pi / OpenCode on the GLM Coding Plan (plan only allows listed tools), or any tool on the QwenCloud Token Plan (glm-5.2) | Ours to choose | Ours: `srt`, Docker, Docker Sandboxes (sandboxes.md) | Ours: a `harness` attribute or backend mapping (spec stylesheet lacks one) |
 
@@ -203,7 +207,9 @@ backends, sandboxing, and harness selection.
   - Each already has half of what we need (citadelgrad the allowed Claude
     route, allouis ACP).
 - **Cons**:
-  - Spec coverage is known only from READMEs.
+  - Spec coverage: allouis is known only from its README. citadelgrad (PAS)
+    is now verified (impl-harmonik-attractor.md): sequential only, with no
+    fan-out/fan-in, ACP, worktrees or reasoning knob.
   - One or a few authors.
   - Still a fork we own.
   - Needs a spike before it can be compared fairly with B and C.

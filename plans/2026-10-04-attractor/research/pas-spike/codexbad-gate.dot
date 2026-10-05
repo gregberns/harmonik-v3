@@ -1,0 +1,7 @@
+digraph CodexBadGate {
+    goal = "Spike: Codex with an invalid model"
+    start [shape="Mdiamond"]
+    build [llm_provider="codex", llm_model="no-such-model-xyz", timeout="120s", goal_gate=true, prompt="Create bad.txt containing x. Then reply DONE."]
+    done  [shape="Msquare"]
+    start -> build -> done
+}
