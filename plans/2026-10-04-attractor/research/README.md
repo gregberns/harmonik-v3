@@ -16,4 +16,5 @@ pulls the topics together; the captain takes its options to the operator.
 | [models.md](models.md) | Qwen 3.8 local, DeepSeek, GLM: how to serve and reach each (Q3, Q5) | planner | done |
 | [sandboxes.md](sandboxes.md) | Sandboxing options (Q6) | planner | done |
 | [poc-claude-subscription.md](poc-claude-subscription.md) | POC: Agent SDK and claude-agent-acp on a Claude subscription (Q4) | planner | done |
+| [fabro-process-backend.md](fabro-process-backend.md) | Fabro: feasibility of a non-ACP process backend for Claude and Codex | researcher | done |
 | [comparison.md](comparison.md) | Support matrix and options with trade-offs (Q7) | researcher | done |
