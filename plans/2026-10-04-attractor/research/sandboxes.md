@@ -68,19 +68,25 @@ Source: https://github.com/danshapiro/kilroy, commit `b55fb0f` (2026-04-27).
   implementation is `env_local*.go` (`LocalExecutionEnvironment`, with an
   env-strip policy). There is no Docker environment.
 - CLI agents are launched with permission bypass:
-  - Claude: `--bare --dangerously-skip-permissions --print` in
-    `internal/attractor/agents/templates/claude.go:20`, and
-    `-p --dangerously-skip-permissions` in `internal/providerspec/builtin.go:44`.
-  - Codex: `exec --sandbox workspace-write --skip-git-repo-check --json`
-    (`templates/codex.go:20`). This is Codex's own Seatbelt/bwrap sandbox.
+  - Claude: `-p --dangerously-skip-permissions --output-format stream-json`
+    in `internal/providerspec/builtin.go:44`, the path the engine's agent
+    router uses. The router strips `ANTHROPIC_API_KEY` so the CLI's own
+    (subscription) login is used (`engine/agent_router.go:1844-1858`). A
+    second template, `internal/attractor/agents/templates/claude.go:20`,
+    used only by the `--tmux` path (`TmuxAgentHandler`), uses `--bare
+    --dangerously-skip-permissions --print`; `--bare` needs an API key.
+  - Codex: the default path runs `exec --json -m {{model}} -C {{worktree}}`
+    (`providerspec/builtin.go:16`) with no `--sandbox` flag; commit
+    `f23e0dc` (2026-03-03, "disable codex sandbox globally") removed it.
+    Only the `--tmux` template (`templates/codex.go:19`) still passes
+    `--sandbox workspace-write`.
   - Gemini: `--yolo` (`providerspec/builtin.go:63`).
   - OpenCode: `run --format json --pure` (`templates/opencode.go`), with no
     sandbox flag.
-- `internal/attractor/engine/agent_router.go:1135-1149`: for "manual box
-  fan-in" merge nodes, Kilroy removes Codex's `--sandbox` flag, because
-  `git merge` writes `.git/` outside the worktree and `workspace-write`
-  blocks that (Kilroy issue #49). Even the one built-in sandbox it uses is
-  turned off for some nodes.
+- `internal/attractor/engine/agent_router.go:1135-1149` strips Codex's
+  `--sandbox` flag on "manual box fan-in" merge nodes, because `git merge`
+  writes `.git/` outside the worktree (Kilroy issue #49). Since `f23e0dc`
+  the default invocation has no such flag, so this is a no-op there.
 - `engine/rust_sandbox_preflight.go` is a Rust build preflight check. It is
   not an isolation feature.
 - Agents can also run in tmux sessions (`agents/tmux_handler.go`). They still
@@ -311,9 +317,9 @@ badlogic/pi-mono), commit `b2b5c42`,
   - `claude setup-token` prints a one-year OAuth token for a Pro, Max, Team
     or Enterprise subscription. Set it as `CLAUDE_CODE_OAUTH_TOKEN`. It "can
     only make model requests".
-  - `--bare` does not read `CLAUDE_CODE_OAUTH_TOKEN`. This matters for
-    Kilroy, whose Claude template uses `--bare` and so needs
-    `ANTHROPIC_API_KEY`.
+  - `--bare` does not read `CLAUDE_CODE_OAUTH_TOKEN`. In Kilroy this
+    affects only the agents-package template (`--bare`); the engine's main
+    path runs `claude -p` without `--bare` and uses the CLI login.
   - On macOS the normal login lives in the Keychain, which a container
     can't read. On Linux it lives in `~/.claude/.credentials.json`.
   - Precedence: `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` both outrank
@@ -337,6 +343,14 @@ badlogic/pi-mono), commit `b2b5c42`,
   - A network-blocked sandbox (Fabro `block`, Codex default) also blocks the
     model endpoint, unless the agent process sits outside the sandbox.
 
+### This host (checked 2026-10-04 by the captain)
+
+- macOS 26.4.1, so Apple `container` (macOS 26 or later) could be installed.
+- `docker` is at `/usr/local/bin/docker`; probably Docker Desktop
+  (unverified).
+- Not installed: OrbStack, Colima, Podman, Apple `container`, Docker
+  Sandboxes (`sbx`).
+
 ### Comparison table
 
 | Option | Isolation level | macOS (Apple Silicon) | Network control | Per-run setup cost | Harnesses | Source |
@@ -359,7 +373,7 @@ badlogic/pi-mono), commit `b2b5c42`,
 | gVisor / Kata | Container with user-space kernel / VM | No (Linux) | Container network | low / medium | Any (Gemini CLI has `runsc`) | google/gvisor, kata-containers |
 | Fabro `docker` provider | Container | Yes (needs a Docker daemon) | `allow_all` or `block` only | Clone repo (depth 100) plus container | Fabro API agent; ACP agents in image | fabro `environments.mdx` @7fc0edb |
 | Fabro `daytona` provider | Cloud VM | n/a (cloud) | allow/block/CIDR list | Snapshot build once | Fabro API agent (ACP not supported) | same |
-| Kilroy | Git worktree only, plus each CLI's flags | Yes | None of its own | Worktree create | claude (bypass), codex (workspace-write), gemini (yolo), opencode | kilroy @b55fb0f |
+| Kilroy | Git worktree only, plus each CLI's flags | Yes | None of its own | Worktree create | claude (bypass), codex (no sandbox; workspace-write only on --tmux), gemini (yolo), opencode | kilroy @b55fb0f |
 
 ### Risk note
 

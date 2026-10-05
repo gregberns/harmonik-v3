@@ -29,10 +29,16 @@ the fact comes from a secondary source or an inference, not a primary page.
   **Pi**, OpenCode, Codex, Goose and Crush; any other use of the plan key
   breaks its terms. Claude Code is Z.ai's lead integration. Neither model
   fits locally; the older GLM-4.7-Flash (30B-A3B) does.
-- **Nothing to install now.** All three are reachable through an
-  Anthropic-compatible endpoint, so Claude Code with a different
-  `ANTHROPIC_BASE_URL` covers all three. Pi and OpenCode also cover all
-  three through OpenAI-compatible endpoints.
+- **Hosted models need nothing installed.** DeepSeek, GLM and hosted Qwen
+  are reachable through an Anthropic-compatible endpoint, so Claude Code
+  with a different `ANTHROPIC_BASE_URL` covers all three; Pi and OpenCode
+  cover them through OpenAI-compatible endpoints. **Local Qwen needs Ollama,
+  llama-server or LM Studio installed**: the only local server here,
+  mlx_lm.server, is OpenAI-only.
+- **One subscription covers all three non-Claude families:** the QwenCloud
+  Token Plan allows "any tool that supports a custom Base URL and API Key"
+  and serves qwen3.8-max/flash, glm-5.2 and deepseek-v4-pro (not GLM-5.3).
+  It is the only plan found that an Attractor backend could call directly.
 
 ## Facts
 
@@ -52,11 +58,11 @@ the fact comes from a secondary source or an inference, not a primary page.
 Releases, newest first (Hugging Face API
 `https://huggingface.co/api/models?author=Qwen`):
 
-| Model | Released (HF) | Type | Params | Context | License | Fits on 64 GB Mac? |
+| Model | Created on HF | Type | Params | Context | License | Fits on 64 GB Mac? |
 |---|---|---|---|---|---|---|
 | Qwen3.8-Flash-Next | 2026-08-24 | MoE + n-gram embedding, vision | 125B total, 6B active (+51B n-gram embedding, 4B MTP); ~180B on disk | 262,144 native, up to 1M with YaRN | Qwen Community License 1.0 | No: smallest GGUF (UD-IQ1_S) is 72.5 GB |
-| Qwen3.8-27B | 2026-08-14 | Dense, vision-language, thinking on by default | 27B | 262,144 native, up to 1M with YaRN | Apache 2.0 | **Yes**: Q4_K_M 16 GB, Q6_K 21 GB, Q8_0 29 GB |
-| Qwen3.8-2.4T-A95B (open "Max") | 2026-08-12 | MoE | 2.4T total, 95B active | 262,144 native, up to 1,010,000 | `qwen3.8-max` (custom) | No |
+| Qwen3.8-27B | 2026-08-05 | Dense, vision-language, thinking on by default | 27B | 262,144 native, up to 1M with YaRN | Apache 2.0 | **Yes**: Q4_K_M 16 GB, Q6_K 21 GB, Q8_0 29 GB |
+| Qwen3.8-2.4T-A95B (open "Max") | 2026-08-08 | MoE | 2.4T total, 95B active | 262,144 native, up to 1,010,000 | `qwen3.8-max` (custom) | No |
 | Qwen3.6-27B | 2026-04-21 | Dense | 27B | (not checked) | Apache 2.0 | Yes |
 | Qwen3.6-35B-A3B | 2026-04-15 | MoE, agentic-coding focus | 35B total, 3B active | (not checked) | Apache 2.0 | Yes: Q4_K_M 22 GB, Q8_0 36 GB; faster than the dense 27B |
 | Qwen3-Coder-Next | 2026-01-30 | MoE, coding-only | ~80B on disk (3B active, unverified) | (not checked) | Apache 2.0 | Only just, at Q4 (~45 GB, unverified) |
@@ -85,7 +91,8 @@ Releases, newest first (Hugging Face API
   `--tool-call-parser qwen3_coder`, the XML-style `<function=...>`
   `<parameter=...>` format (https://github.com/QwenLM/Qwen3.8).
 - Qwen's own subscription: the QwenCloud Token Plan. Personal tiers are
-  $6 (Lite, limited time), $10, $18 and $68 a month; Team tiers are $20,
+  $6, $10, $18 and $68 a month at limited-time prices (regular: $8, $16,
+  $25, $80); Team tiers are $20,
   $75 and $200 per seat. It is "compatible with the OpenAI and Anthropic
   API protocols. Any tool that supports a custom Base URL and API Key can be
   integrated." Anthropic base:
@@ -106,7 +113,7 @@ Releases, newest first (Hugging Face API
 | Runtime | OpenAI-compat | Anthropic-compat `/v1/messages` | Qwen3.8 available | Tool calling notes | Source |
 |---|---|---|---|---|---|
 | **Ollama** | `http://localhost:11434/v1` | Yes, with tools and tool results. Claude Code: `ANTHROPIC_BASE_URL=http://localhost:11434`, `ANTHROPIC_AUTH_TOKEN=ollama` | `qwen3.8:27b` (18 GB) and `qwen3.8:27b-mlx`, 256K context, "vision tools thinking" | Open bugs: #18563 (2026-09-21), the `qwen3coder` parser rejects long file-write tool calls and returns the error as the answer; #17906, `/v1/messages` maps `xhigh` to `high`, which breaks the Qwen3.8 template; #18632 and #18766, `think` levels ignored for Qwen3.8 | https://docs.ollama.com/api/anthropic-compatibility, https://ollama.com/library/qwen3.8, github.com/ollama/ollama issues |
-| **llama.cpp `llama-server`** | `/v1/chat/completions` | Yes: `/v1/messages` and `/v1/messages/count_tokens`, with streaming, tool use, vision and thinking. Claude Code: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` | GGUF from unsloth, ggml-org and lmstudio-community | Start with `--jinja` or tools will not work. Unsloth's GGUF ships template fixes ("parsing nested objects to make tool calling succeed more", developer-role support for Codex). Issue #20090: the Anthropic path drops thinking blocks | https://huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp, https://github.com/ggml-org/llama.cpp/issues/20090, https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
+| **llama.cpp `llama-server`** | `/v1/chat/completions` | Yes: `/v1/messages` and `/v1/messages/count_tokens`, with streaming, tool use, vision and thinking. Claude Code: `ANTHROPIC_BASE_URL=http://127.0.0.1:8080` | GGUF from unsloth, ggml-org and lmstudio-community | Start with `--jinja` or tools will not work. Unsloth's GGUF ships template fixes ("parsing nested objects to make tool calling succeed more", developer-role support for Codex). Issue #20090 (Anthropic path dropped thinking blocks) was fixed 2026-03-06 | https://huggingface.co/blog/ggml-org/anthropic-messages-api-in-llamacpp, https://github.com/ggml-org/llama.cpp/issues/20090, https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
 | **LM Studio** | Yes (`http://localhost:1234/v1`) | Yes. Claude Code: `ANTHROPIC_BASE_URL=http://localhost:1234`, `ANTHROPIC_AUTH_TOKEN=lmstudio` | MLX 4/5/6/8-bit and GGUF from lmstudio-community | Tool use documented on the OpenAI side; tool use through `/v1/messages` not stated explicitly | https://lmstudio.ai/docs/developer/anthropic-compat |
 | **mlx-lm `mlx_lm.server`** | `/v1/chat/completions`, `/v1/completions`, `/v1/models` | **No** | MLX quants (e.g. lmstudio-community/Qwen3.8-27B-MLX-4bit); Qwen3.8-27B uses the Qwen3.5 architecture, which v0.31.3 should load (unverified) | Has a `qwen3_coder` tool parser (`mlx_lm/tool_parsers/qwen3_coder.py`). Latest release v0.31.3 (2026-04-22) predates Qwen3.8 | github.com/ml-explore/mlx-lm (source read via gh API) |
 | **vLLM** | Yes | vLLM upstream: not checked | The Qwen3.8 recipe targets CUDA GPUs (`--tensor-parallel-size 4`) | `--tool-call-parser qwen3_coder` | https://github.com/QwenLM/Qwen3.8 |
@@ -115,11 +122,12 @@ Releases, newest first (Hugging Face API
 Third-party MLX servers that advertise Anthropic endpoints and tested tool
 calling with Claude Code: Rapid-MLX, vllm-mlx and mlx-serve (not evaluated).
 
-Tool-calling quality of local Qwen in agent harnesses: the model is trained
-and benchmarked in Claude Code, so it is not the weak point. The serving
+Tool-calling quality of local Qwen in agent harnesses: Qwen reports its coding
+benchmarks run in Claude Code (the Max card for most of them, the 27B card
+for SWE-bench Pro and QwenSWEBench), so the model is not the weak point. The serving
 layer is: XML tool-call parsing, chat-template quirks and the
-reasoning-effort mapping all have open bugs as of October 2026 (Ollama
-issues above). One blog reports Qwen3.8-27B agents hanging on Ollama's `/v1`
+reasoning-effort mapping have open Ollama bugs as of October 2026 (issues
+above). One blog reports Qwen3.8-27B agents hanging on Ollama's `/v1`
 path while `/api/chat` works (unverified,
 https://www.betterclaw.io/blog/qwen-3-8-27b-tool-calling-fails-agents-fix).
 Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
@@ -148,7 +156,7 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
   | flash | $0.006 | $0.30 | $1.20 |
   | v4-pro | $0.044 | $1.32 | $3.96 |
 
-  Peak hours are 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday.
+  Peak hours are 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday, excluding Chinese public holidays.
   Concurrency limits: Flash 2500, Pro 500.
 - Endpoints: OpenAI-compatible `https://api.deepseek.com`
   (https://api-docs.deepseek.com/). Anthropic-compatible
@@ -214,9 +222,9 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
 
     | Tier | Price a month | Credits per 5 hours | Credits per week |
     |---|---|---|---|
-    | Lite | $18 | 2,000 | 10,000 |
-    | Pro | $80 (unverified) | 12,000 | 60,000 |
-    | Max | $168 (unverified) | 28,000 | 140,000 |
+    | Lite | $18 | 2,000 (unverified) | 10,000 (unverified) |
+    | Pro | $80 (unverified) | 12,000 (unverified) | 60,000 (unverified) |
+    | Max | $168 (unverified) | 28,000 (unverified) | 140,000 (unverified) |
 
     The docs say only "starting at 18 USD per month"; the Pro and Max
     prices come from https://www.layer3labs.io/guides/glm-coding-plan-explained.
@@ -236,7 +244,7 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
   `API_TIMEOUT_MS=3000000`, and maps opus and sonnet to `glm-5.3[1m]` and
   haiku to `glm-5.3-flash[1m]`. The page's default-mapping text says all
   three map to GLM-5.3-Flash, which contradicts its own example. Z.ai also
-  has its own tool, ZCode, which uses 1.5 times the plan usage.
+  has its own tool, ZCode, which uses 1.5 times the plan usage (unverified, no source found).
 
 ### Others (optional)
 
@@ -251,8 +259,8 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
 
 | Model | Latest version | Local on this Mac? | OpenAI-compat endpoint | Anthropic-compat endpoint | Plan / subscription | Vendor-recommended harness | Source |
 |---|---|---|---|---|---|---|---|
-| Qwen (local) | Qwen3.8-27B (2026-08-14); Flash-Next 2026-08-24 | Yes, 27B at Q4-Q8 (16-29 GB); Flash-Next and Max no | Ollama `:11434/v1`, llama-server `:8080/v1`, LM Studio `:1234/v1`, mlx_lm.server | Ollama `:11434`, llama-server `:8080`, LM Studio `:1234` (all `/v1/messages`) | n/a | Qwen Code; Qwen benchmarks in Claude Code | huggingface.co/Qwen/Qwen3.8-27B, docs.ollama.com, llama.cpp HF blog |
-| Qwen (hosted) | Qwen3.8-Max (2026-08-03) | n/a | QwenCloud (path not checked) | `https://maas.qwencloudapi.com/apps/anthropic`; Token Plan `https://token-plan.maas.qwencloudapi.com/apps/anthropic` | Token Plan $6-$68 a month (personal), any tool allowed | Qwen Code, Claude Code | docs.qwencloud.com |
+| Qwen (local) | Qwen3.8-27B (2026-08-05); Flash-Next 2026-08-24 | Yes, 27B at Q4-Q8 (16-29 GB); Flash-Next and Max no | Ollama `:11434/v1`, llama-server `:8080/v1`, LM Studio `:1234/v1`, mlx_lm.server | Ollama `:11434`, llama-server `:8080`, LM Studio `:1234` (all `/v1/messages`) | n/a | Qwen Code; Qwen benchmarks in Claude Code | huggingface.co/Qwen/Qwen3.8-27B, docs.ollama.com, llama.cpp HF blog |
+| Qwen (hosted) | Qwen3.8-Max (2026-08-03) | n/a | QwenCloud (path not checked) | `https://maas.qwencloudapi.com/apps/anthropic`; Token Plan `https://token-plan.maas.qwencloudapi.com/apps/anthropic` | Token Plan $6-$68 a month (personal, limited-time; regular $8-$80), any tool allowed; also serves glm-5.2 and deepseek-v4-pro | Qwen Code, Claude Code | docs.qwencloud.com |
 | DeepSeek | V4.1-Flash (2026-09-10), V4-Pro-0813 | No | `https://api.deepseek.com` | `https://api.deepseek.com/anthropic` | None, API only, off-peak half price | DeepSeek Harness (dsh, preview); Claude Code documented | api-docs.deepseek.com |
 | GLM | GLM-5.3 (2026-08-18), GLM-5.3-Flash (2026-08-26) | No; GLM-4.7-Flash 30B-A3B yes | `https://api.z.ai/api/paas/v4` (coding: `.../api/coding/paas/v4`) | `https://api.z.ai/api/anthropic` | GLM Coding Plan $18 / $80 / $168 a month, listed tools only (includes Pi, OpenCode, Claude Code) | Claude Code (lead); ZCode is Z.ai's own | docs.z.ai |
 
@@ -265,9 +273,11 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
 - **Operator:** do you have, or will you buy, a GLM Coding Plan? Its terms
   allow only listed tools. Pi, OpenCode and Claude Code are listed, but an
   Attractor backend calling the API directly is not. That pushes GLM
-  through one of those harnesses, or onto pay-as-you-go.
+  through one of those harnesses, or onto pay-as-you-go. Alternative: the
+  QwenCloud Token Plan serves glm-5.2 (not 5.3) to any tool.
 - **Operator:** DeepSeek has no plan. Is pay-as-you-go acceptable? Rates
-  are low ($0.30 / $1.20 per 1M for Flash at peak).
+  are low ($0.30 / $1.20 per 1M for Flash at peak). Alternative: the
+  QwenCloud Token Plan serves deepseek-v4-pro to any tool.
 - Which local runtime? Ollama is easiest but has open Qwen3.8 tool-call and
   effort bugs. llama-server with `--jinja` and unsloth GGUF has a
   documented Anthropic endpoint. A short test on a scratch repo (Claude Code
