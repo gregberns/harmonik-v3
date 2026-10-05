@@ -273,13 +273,16 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   - Auth methods: Log in with Google, Gemini API key, Vertex AI, AI API
     Gateway (`packages/cli/src/acp/acpRpcDispatcher.ts`).
 - **Qwen Code** (native). The registry launches
-  `qwen --acp --experimental-skills` (`@qwen-code/qwen-code` 0.24.7).
+  `qwen --acp --experimental-skills` (`@qwen-code/qwen-code` 0.25.0 on npm, checked 2026-10-05; registry entry 0.24.7).
   - Its ACP auth offers only "Use OpenAI API key"
     (`packages/cli/src/acp-integration/authMethods.ts`). Any
     OpenAI-compatible endpoint works, which suits a local Qwen; Qwen OAuth is
     not offered over ACP.
 - **Goose** (native): `goose acp` (registry, v1.53.0).
-- **Kimi CLI** (native): `kimi acp` (registry, v1.52.0).
+- **Kimi CLI** (native): `kimi acp` (registry, v1.52.0). The registry's
+  `kimi/agent.json` points at `MoonshotAI/kimi-cli`, which is archived
+  (`gh api`: `archived: true`, checked 2026-10-05); its successor is Kimi
+  Code CLI (harnesses.md).
 - **DeepSeek: DeepSeek Harness (`dsh`), native ACP, not in the registry.**
   Checked 2026-10-05 at `deepseek-ai/deepseek-harness@5badb15` and registry
   `c1ff2a7`; nothing installed or run.
@@ -411,9 +414,9 @@ work.
 | OpenCode | native | `opencode acp` | Through OpenCode's own provider logins (`opencode-login`); per-provider details unverified | registry `opencode/agent.json` v1.18.34 |
 | Pi | adapter (third-party) | `npx pi-acp` (needs `pi` on PATH) | Uses pi's own provider config; unverified | github.com/svkozak/pi-acp v0.0.34 |
 | Gemini CLI | native | `gemini --acp` (formerly `--experimental-acp`) | Yes, "Log in with Google" auth method | gemini-cli `packages/cli/src/acp/acpRpcDispatcher.ts`; registry v0.62.0 |
-| Qwen Code | native | `qwen --acp` | No; ACP auth offers only an OpenAI-compatible API key | qwen-code `packages/cli/src/acp-integration/authMethods.ts`; registry v0.24.7 |
+| Qwen Code | native | `qwen --acp` | No; ACP auth offers only an OpenAI-compatible API key | qwen-code `packages/cli/src/acp-integration/authMethods.ts`; npm 0.25.0 (2026-10-05), registry v0.24.7 |
 | Goose | native | `goose acp` | Unverified | registry v1.53.0 |
-| Kimi CLI | native | `kimi acp` | Unverified | registry v1.52.0 |
+| Kimi CLI | native | `kimi acp` | Unverified | registry v1.52.0, pointing at the archived `MoonshotAI/kimi-cli` |
 | DeepSeek Harness (`dsh`) | native, not in registry | `dsh --profile acp` | No subscription; `DEEPSEEK_API_KEY` | deepseek-harness@5badb15 `apps/cli/README.md:13`; npm 0.2.0-rc.2 |
 | ZCode (Z.ai, GLM) | none (own `app-server` protocol); headless `zcode -p` | — | Pay per token: a `zai-standard-api` key in `~/.zcode/v2/provider_config.json`; `zcode login` is Coding Plan OAuth only (`login-command.ts:15-17`, `command-center/login-flow.ts:14-16`), ruled out by decisions.md Q2 | ZCode@29628c9; community PRs #566, #650 |
 | GLM via `glm-acp-agent` | third-party agent | `npx glm-acp-agent` | Coding Plan endpoint by default (`Z_AI_API_KEY`) | registry v1.14.0 |
