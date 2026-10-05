@@ -8,3 +8,4 @@ Status: research.
 
 - [requirements.md](requirements.md): the operator's requirements and the questions research answers
 - [research/](research/): findings, one file per topic; [research/README.md](research/README.md) is the index
+- [decisions.md](decisions.md): questions for the operator and the answers

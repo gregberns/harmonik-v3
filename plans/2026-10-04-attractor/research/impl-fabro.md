@@ -208,6 +208,12 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
   parallel branches use isolated git worktrees (changelog 2026-03-01).
 - Granularity: per run, not per node (no node-level environment attribute in
   `dot-language.mdx`). Remote access: `fabro sandbox ssh`, `fabro sandbox preview`.
+- From the planner's sandboxes.md (not re-checked here):
+  - Docker network policy is only allow_all or block. IP allow-lists exist only on Daytona, and nothing filters by domain.
+  - ACP adapters run inside the active sandbox and must already be in the image.
+  - The packaged deployment mounts `docker.sock`, which Fabro's own docs call "host-root-equivalent".
+  - Docker is reached via `DOCKER_HOST`. OrbStack, Colima and Podman are untested.
+  - `docs/public/agents/permissions.mdx` still describes the removed cli backend.
 
 ### 4. Extensibility
 
