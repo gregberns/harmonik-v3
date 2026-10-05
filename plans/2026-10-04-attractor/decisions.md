@@ -56,3 +56,10 @@ Further direction for the fork (operator, 2026-10-04):
 | 22 | Crashes and timeouts? | impl-harmonik-attractor.md | Need better handling than failing the run outright (unroutable today). |
 | 23 | Remote execution? | operator | The handler interface must allow a handler that runs the agent on another machine (e.g. the CLI on one host triggers the agent on another). Make it possible; don't build it. |
 | 24 | Move to design? | operator | Yes, once the research is deep enough to be confident. Use the design skills so the design is thorough. |
+
+Design review with the operator (2026-10-05):
+
+| # | Question | Source | Answer |
+|---|---|---|---|
+| 25 | Session ids? | design.md §1 | The engine mints a GUID per agent session and passes it through the interface (request field, `{session_id}` template, `PAS_SESSION_ID` env) so profiles can hand it to agents that accept one (`claude --session-id <uuid>`). Handlers may ignore it. The id the agent actually used is recorded, enabling later session restart and other uses. |
+| 26 | No mid-run control in the one-call interface (design.md §1)? | design.md §1 | Acceptable for now; a single added call could provide it later. |
