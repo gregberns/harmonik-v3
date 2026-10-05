@@ -89,7 +89,11 @@ Source: https://github.com/danshapiro/kilroy, commit `b55fb0f` (2026-04-27).
     `--sandbox workspace-write`.
   - Codex app-server provider: `approvalPolicy: "never"`, `sandbox:
     "danger-full-access"`, `sandboxPolicy: {type: dangerFullAccess}`
-    (`engine/agent_router.go:536-545`).
+    (`engine/agent_router.go:536-545`). This is Codex as a model inside
+    Kilroy's loop, not the Codex harness. Kilroy declines only dynamic tool
+    calls and approval requests (`codexappserver/transport.go:957-973`), so
+    Codex's built-in shell and apply_patch are not disabled and would run
+    with full access if used (unverified by a run; driver-and-assembly.md).
   - Gemini: `--yolo` (`providerspec/builtin.go:63`).
   - OpenCode: `run --format json --pure` (`templates/opencode.go`), with no
     sandbox flag.
