@@ -13,6 +13,6 @@ pulls the topics together; the captain takes its options to the operator.
 | [impl-fabro.md](impl-fabro.md) | Fabro in depth (Q3) | researcher | in progress |
 | [acp.md](acp.md) | Agent Client Protocol: what it is, who supports it (Q4) | planner | in progress |
 | [harnesses.md](harnesses.md) | Coding agents and which models they are tuned for; subscriptions (Q3, Q5) | planner | in progress |
-| [models.md](models.md) | Qwen 3.8 local, DeepSeek, GLM: how to serve and reach each (Q3, Q5) | planner | in progress |
+| [models.md](models.md) | Qwen 3.8 local, DeepSeek, GLM: how to serve and reach each (Q3, Q5) | planner | done |
 | [sandboxes.md](sandboxes.md) | Sandboxing options (Q6) | planner | in progress |
 | [comparison.md](comparison.md) | Support matrix and options with trade-offs (Q7) | researcher | todo |
