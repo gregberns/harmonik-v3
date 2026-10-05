@@ -35,8 +35,8 @@ Direction for this iteration (operator, 2026-10-04):
 | # | Question | Source | Answer |
 |---|---|---|---|
 | 12 | Which base to explore hands-on? | implementations.md, comparison.md | Fork citadelgrad/pascals-discrete-attractor as https://github.com/gregberns/harmonik-attractor: smaller is more appealing. Its code lives in its own repo, not in harmonik-v3; harmonik-v3 only knows how to invoke it. It is one modular component that runs jobs; other components build on it. |
-| 13 | How are agents and models configured? | operator | Nothing hard-coded. The user configures each agent: the process to run, model name, reasoning level and so on, and the configuration is passed through. |
-| 14 | How do nodes execute agents? | operator | Through a clean, separate interface (a crate or similar) with several handlers, one per execution mechanism: ACP, running an executable directly, tmux, and others later. |
+| 13 | How are agents and models configured? | operator | Ship a default config users can use or edit, but nothing that needs a code change: a new model version or agent must not require a new binary. The config sets the process to run, model name, reasoning level and so on, and is passed through. |
+| 14 | How do nodes execute agents? | operator | Through a clean, separate interface (a crate or similar) where each execution mechanism is a handler. Build only what proves it: one simple `claude -p` handler. ACP, direct-executable and tmux handlers must be possible, not built now. |
 | 15 | Worktrees? | operator | Required: the Attractor must create git worktrees and run the agent in them. |
 
 Correction (operator, 2026-10-04): DeepSeek and GLM now each have their own
