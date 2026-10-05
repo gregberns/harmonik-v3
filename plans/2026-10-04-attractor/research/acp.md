@@ -381,7 +381,7 @@ work.
 | Agent | ACP support | How to launch | Subscription login works? | Source |
 |---|---|---|---|---|
 | Claude Code | adapter (Claude Agent SDK) | `npx -y @agentclientprotocol/claude-agent-acp` | Technically yes ("Claude Subscription" auth method, uses `claude` login); policy restricts third-party products offering it, and ACP billing changes were postponed on 2026-06-16 | github.com/agentclientprotocol/claude-agent-acp v0.85.1; zed.dev/blog/anthropic-subscription-changes |
-| Codex | adapter (Codex App Server) | `npx -y @agentclientprotocol/codex-acp` | Yes, ChatGPT login per README (`NO_BROWSER=1` hides it) | github.com/agentclientprotocol/codex-acp v2.1.1 |
+| Codex | adapter (Codex App Server) | `npx -y @agentclientprotocol/codex-acp` | Yes, ChatGPT login; headless reuse with `NO_BROWSER=1` verified in spike-fabro.md | github.com/agentclientprotocol/codex-acp v2.1.1 |
 | OpenCode | native | `opencode acp` | Through OpenCode's own provider logins (`opencode-login`); per-provider details unverified | registry `opencode/agent.json` v1.18.34 |
 | Pi | adapter (third-party) | `npx pi-acp` (needs `pi` on PATH) | Uses pi's own provider config; unverified | github.com/svkozak/pi-acp v0.0.34 |
 | Gemini CLI | native | `gemini --acp` (formerly `--experimental-acp`) | Yes, "Log in with Google" auth method | gemini-cli `packages/cli/src/acp/acpRpcDispatcher.ts`; registry v0.62.0 |
@@ -409,8 +409,9 @@ work.
   deprecated. Does Fabro's ACP path work with the current
   `@agentclientprotocol/claude-agent-acp` and `codex-acp` 2.x? It has only
   been tested against Claude and Gemini with API keys.
-- Does `codex-acp` pick up an existing `~/.codex` ChatGPT login headlessly,
-  without the browser auth method?
+- ~~Does `codex-acp` pick up an existing `~/.codex` ChatGPT login
+  headlessly?~~ Yes: verified in the Fabro spike with `NO_BROWSER=1`, no
+  login step and no `OPENAI_API_KEY` ([spike-fabro.md](spike-fabro.md)).
 - How does a local Qwen behave through Qwen Code over ACP compared with
   OpenCode or Pi?
 - When will v2 stabilize, and will the adapters drop v1?

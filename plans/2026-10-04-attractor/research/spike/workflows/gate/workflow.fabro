@@ -1,0 +1,11 @@
+digraph Gate {
+    graph [goal="Spike: does goal_gate fail the run when a check fails?"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    check [label="Check", script="test \"$(echo apple)\" = BANANA", goal_gate=true]
+    fail  [label="Report failure", script="echo CHECK_FAILED"]
+    start -> check
+    check -> exit [condition="outcome=succeeded"]
+    check -> fail
+    fail -> exit
+}

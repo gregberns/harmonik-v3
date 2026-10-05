@@ -1,0 +1,17 @@
+digraph Pipeline {
+    graph [goal="Spike: Claude then Codex then a deterministic check"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    plan  [label="Claude plans", backend="acp",
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/claude-agent-acp\",\"args\":[],\"env\":{\"ANTHROPIC_MODEL\":\"haiku\"}}",
+           prompt="Use the Write tool to create word.txt containing exactly one lowercase word: banana. Then reply DONE."]
+    build [label="Codex builds", backend="acp",
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/codex-acp\",\"args\":[],\"env\":{\"NO_BROWSER\":\"1\",\"INITIAL_AGENT_MODE\":\"workspace-write\"}}",
+           prompt="Read word.txt and create upper.txt containing that word in uppercase and nothing else. Then reply DONE."]
+    check [label="Check", script="test \"$(tr -d '[:space:]' < upper.txt)\" = BANANA && echo CHECK_OK"]
+    fail  [label="Report failure", script="echo CHECK_FAILED; cat upper.txt; exit 1"]
+    start -> plan -> build -> check
+    check -> exit [condition="outcome=succeeded"]
+    check -> fail
+    fail -> exit
+}

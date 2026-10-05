@@ -115,9 +115,11 @@ env -u ANTHROPIC_API_KEY claude -p "$PROMPT" --model haiku \
 
 - The SDK and the CLI both emit `rate_limit_event` with the same Max plan
   windows (five_hour 5 %, seven_day 23 %), so both count against the plan.
-  ACP did not surface the windows in this run (see above); it wraps the
-  same SDK and reported the Claude Max account, so it is metered the same
-  way (inferred, not shown on the wire). Overage is
+  ACP did not surface the windows in this run (see above), but the Fabro
+  spike's ACP run did: its `events-claude2.jsonl` carries
+  `_claude/rateLimit` with five_hour 0.07, seven_day 0.23 and
+  `overageStatus: "rejected"` (`org_level_disabled`). So ACP use also counts
+  against the Max windows ([spike-fabro.md](spike-fabro.md)). Overage is
   disabled for the org, so these runs could not have been billed as extra
   usage.
 - I did not check the usage page or `/status` interactively. The

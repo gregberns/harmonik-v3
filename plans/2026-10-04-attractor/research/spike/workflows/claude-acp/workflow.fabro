@@ -1,0 +1,9 @@
+digraph ClaudeAcp {
+    graph [goal="Spike: Claude Code via ACP on a subscription"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    write [label="Claude writes", backend="acp",
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/claude-agent-acp\",\"args\":[],\"env\":{\"ANTHROPIC_MODEL\":\"haiku\"}}",
+           prompt="Use the Write tool to create claude.txt containing exactly: hi from claude. Then reply DONE."]
+    start -> write -> exit
+}

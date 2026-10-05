@@ -1,0 +1,9 @@
+digraph CodexAcp {
+    graph [goal="Spike: Codex via codex-acp on a ChatGPT login"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    write [label="Codex writes", backend="acp",
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/codex-acp\",\"args\":[],\"env\":{\"NO_BROWSER\":\"1\",\"INITIAL_AGENT_MODE\":\"workspace-write\",\"CODEX_CONFIG\":\"{\\\"model_reasoning_effort\\\":\\\"low\\\"}\"}}",
+           prompt="Create a file named codex.txt containing exactly: hi from codex. Then reply DONE."]
+    start -> write -> exit
+}

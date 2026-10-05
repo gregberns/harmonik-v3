@@ -18,4 +18,5 @@ pulls the topics together; the captain takes its options to the operator.
 | [poc-claude-subscription.md](poc-claude-subscription.md) | POC: Agent SDK and claude-agent-acp on a Claude subscription (Q4) | planner | done |
 | [fabro-process-backend.md](fabro-process-backend.md) | Fabro: feasibility of a non-ACP process backend for Claude and Codex | researcher | done |
 | [driver-and-assembly.md](driver-and-assembly.md) | Driving Kilroy vs Fabro from outside; assembly map of engine, backends, agent tools, models | planner | in review |
+| [spike-fabro.md](spike-fabro.md) | Hands-on Fabro spike: Claude and Codex over ACP, 3-node pipeline, run control | researcher | done |
 | [comparison.md](comparison.md) | Support matrix and options with trade-offs (Q7) | researcher | done |
