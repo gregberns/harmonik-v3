@@ -10,7 +10,7 @@ in a primary source.
   clearly allowed, and each is tuned for its own vendor's models. Anthropic
   allows the Claude Pro/Max login only in its own apps, so Claude must run
   through the real `claude` binary. OpenAI also allows ChatGPT sign-in in
-  16 partner tools (since DevDay, 2026-09-29). Both CLIs have a headless JSON
+  16 partner tools (since DevDay, 2026-09-29; secondary sources only). Both CLIs have a headless JSON
   mode. Both need an adapter for ACP.
 - For open-weight models, each vendor now ships or names its own harness:
   Qwen → Qwen Code, DeepSeek → DeepSeek Harness (`dsh`), Z.ai GLM → ZCode,
@@ -21,9 +21,11 @@ in a primary source.
   plugins that hand a task to a real Claude Code, a real Codex, or any ACP
   agent, and each plugin instance has its own fixed model. (Guess, but the
   match is strong.)
-- Picking the harness by model is practical and has some evidence behind it.
-  On Terminal-Bench 2.1 the vendor's own CLI beats the neutral Terminus 2
-  harness by 0 to 5 points for the same model. The cost is one CLI per vendor
+- Picking the harness by model is practical. On Terminal-Bench 2.1, across
+  12 same-model pairs, the vendor's own CLI scores −8.1 to +29.2 points
+  against the neutral Terminus 2 harness. It clearly helps for Claude and
+  GPT (Claude Code and Codex win every pair, +2.8 to +29.2), is mixed for
+  Gemini (−8.1 to +2.7), and there is no data for the open-weight models. The cost is one CLI per vendor
   to install, log in, configure and update, each with its own headless flags
   and event schema. ACP or a thin adapter per CLI can hide the schema
   differences.
@@ -38,20 +40,20 @@ Release dates are from GitHub releases.
 | Harness | Tuned for | Subscription login | Headless | ACP | Customisation | License | Latest release |
 |---|---|---|---|---|---|---|---|
 | Claude Code (`anthropics/claude-code`) | Claude. Also takes any Anthropic-compatible endpoint (DeepSeek, GLM, Kimi document this) | Claude Pro/Max/Team/Ent OAuth (allowed only in Claude Code and Anthropic apps) | `-p`, `--output-format text\|json\|stream-json`, `--json-schema`, `--bare` | adapter: `agentclientprotocol/claude-agent-acp` v0.85.1 (2026-10-02) | plugins, hooks, skills, subagents, MCP, CLAUDE.md, `--system-prompt`/`--append-system-prompt`, `--settings` | proprietary (no SPDX) | v2.1.289, 2026-10-03 |
-| Codex CLI (`openai/codex`) | GPT. Has a separate system prompt for each GPT model. Custom providers are configured in `config.toml` | ChatGPT plan sign-in (also device code) | `codex exec --json` (JSONL), `--output-schema`, `-o`, `exec resume` | adapter: `agentclientprotocol/codex-acp` v2.1.1 (2026-10-01). The old `zed-industries/codex-acp` is archived | AGENTS.md, MCP, skills/plugins (unverified detail), `config.toml` | Apache-2.0 | rust-v0.160.0, 2026-10-01 |
-| OpenCode (`sst/opencode` → `anomalyco/opencode`) | Any model. Picks a system prompt by model id (anthropic, gpt, codex, gemini, kimi, meta, trinity, default) | ChatGPT Plus/Pro, GitHub Copilot, GitLab Duo, OpenCode Zen/Go, Z.ai Coding Plan. Claude Pro/Max removed in 1.3.0 | `opencode run --format json`, `--auto`. Also `opencode serve` (HTTP) | native: `opencode acp` | plugins, agents, AGENTS.md, MCP, custom prompts | MIT | v1.18.34, 2026-09-30 |
+| Codex CLI (`openai/codex`) | GPT. Has a separate system prompt for each GPT model (prompt files to GPT-5.2; newer models via `models.json`). Custom providers are configured in `config.toml` | ChatGPT plan sign-in (also device code) | `codex exec --json` (JSONL), `--output-schema`, `-o`, `exec resume` | adapter: `agentclientprotocol/codex-acp` v2.1.1 (2026-10-01). The old `zed-industries/codex-acp` is archived | AGENTS.md, MCP, skills/plugins (unverified detail), `config.toml` | Apache-2.0 | rust-v0.160.0, 2026-10-01 |
+| OpenCode (`sst/opencode` → `anomalyco/opencode`) | Any model. Picks a system prompt by model id (anthropic, gpt, codex, gemini, kimi, meta, trinity, beast, gpt-astra, default; GLM, DeepSeek and Qwen fall to default) | ChatGPT Plus/Pro, GitHub Copilot, GitLab Duo, OpenCode Zen/Go, Z.ai Coding Plan. Claude Pro/Max removed in 1.3.0 | `opencode run --format json`, `--auto`. Also `opencode serve` (HTTP) | native: `opencode acp` | plugins, agents, AGENTS.md, MCP, custom prompts | MIT | v1.18.34, 2026-09-30 |
 | Pi (`badlogic/pi-mono` → `earendil-works/pi`) | Any model. Short base prompt, "minimal, extensible" | OAuth for Anthropic (Claude Pro/Max), OpenAI ChatGPT/Codex, GitHub Copilot, Kimi Coding, xAI, OpenRouter, Meta, Radius. API-key plans: Z.ai Coding Plan, Qwen Token Plan, Kimi For Coding | `-p/--print`, `--mode json` (JSONL), `--mode rpc`, SDK | adapter: `svkozak/pi-acp` (community) | extensions (TypeScript), skills, prompt templates, packages, MCP, `--append-system-prompt` | MIT | v1.0.2, 2026-10-04 |
 | Qwen Code (`QwenLM/qwen-code`) | Qwen ("optimized for Qwen models"). Forked from Gemini CLI v0.8.2 | Alibaba Cloud Coding Plan / Token Plan. The free Qwen OAuth tier ended 2026-04-15 | `-p`, `--output-format text\|json\|stream-json` | native (ACP list). `qwen serve` daemon is experimental | `--system-prompt`, `--append-system-prompt`, MCP, skills, subagents (unverified detail) | Apache-2.0 | v0.24.7, 2026-09-29 (nightlies daily) |
 | Gemini CLI (`google-gemini/gemini-cli`) | Gemini | Sign in with Google for paid tiers. Unpaid and Google One users were moved to Antigravity CLI on 2026-06-18 | `-p`, `--output-format json\|stream-json` | native | extensions, GEMINI.md, MCP | Apache-2.0 | v0.62.0, 2026-09-29 |
-| DeepSeek Harness `dsh` (`deepseek-ai/deepseek-harness`) | DeepSeek V4 (direct adapter). Other providers go through pi-ai (Pi's model library) | DeepSeek API key. Codex OAuth "not supported yet" in the UI (community plugin exists) | `dsh --profile headless "<task>" [--json]` (NDJSON) | native: `dsh --profile acp` (server), `subagent-acp` (client) | everything is a plugin (Cordis), presets, personas, skills, hooks, MCP | MIT | dsh-v0.2.1-alpha.1, 2026-10-03 (developer preview) |
-| ZCode (`zai-org/ZCode`) | GLM-5.3 | GLM Coding Plan, Z.ai/BigModel key | has an agent CLI (`apps/zcode-cli`). Headless flags unverified | not on the ACP list (unverified) | plugins (`.zcode-plugin/plugin.json`), MCP, skills | Apache-2.0 | v3.14.3, 2026-09-24 |
+| DeepSeek Harness `dsh` (`deepseek-ai/deepseek-harness`) | DeepSeek V4 (direct adapter). Other providers go through pi-ai (Pi's model library) | DeepSeek API key. Codex OAuth "not supported yet" in the UI (community plugin exists) | `dsh --profile headless "<task>" [--json]` (NDJSON) | native: `dsh --profile acp` (server), `subagent-acp` (client); not on the ACP agents page | everything is a plugin (Cordis), presets, personas, skills, hooks, MCP | MIT | dsh-v0.2.1-alpha.1, 2026-10-03 (developer preview) |
+| ZCode (`zai-org/ZCode`) | GLM-5.3 | GLM Coding Plan, Z.ai/BigModel key | has an agent CLI (`apps/zcode-cli`). Headless flags unverified | not on the ACP agents page | plugins (`.zcode-plugin/plugin.json`), MCP, skills | Apache-2.0 | v3.14.3, 2026-09-24 |
 | Kimi Code CLI (`MoonshotAI/kimi-code`) | Kimi | Kimi Code OAuth (Kimi membership, Plus tier and up) or Moonshot key | `-p`, `--output-format text\|stream-json` | native: `kimi acp` | plugins marketplace, skills, MCP, hooks, subagents | MIT | 2.1.1, 2026-09-24 |
 | Crush (`charmbracelet/crush`) | Any (Catwalk catalog). Charm's own provider is "Hyper" (subscription) | Hyper subscription. Others by API key | `crush run` (text only, no JSON flag in `internal/cmd/run.go`) | not listed | CRUSH.md / AGENTS.md, skills, hooks (preliminary), MCP | FSL-1.1-MIT | v0.97.1, 2026-09-29 |
 | Goose (`block/goose` → `aaif-goose/goose`) | Any | can delegate to Claude Code / Codex through ACP providers (`claude-acp`, `codex-acp`). The older CLI pass-through providers are deprecated | `goose run -t ... --output-format json\|stream-json` | native: `goose acp` | recipes, MCP extensions, subagents | Apache-2.0 | v1.53.0, 2026-10-02 |
 | Cline CLI (`cline/cline`) | Any | Cline account / ClinePass, BYOK | headless when `--json` is used or stdin/stdout is redirected. `--auto-approve` | native | rules, MCP, `-m/-P` overrides | Apache-2.0 | cli-v3.0.68, 2026-10-02 |
-| Kilo CLI (`Kilo-Org/kilocode`) | Any (500+ models) | Kilo account. Listed by Z.ai and Alibaba coding plans | `kilo run` (unverified, believed to be OpenCode-derived) | unverified | MCP, modes | MIT | v7.8.3, 2026-10-01 |
+| Kilo CLI (`Kilo-Org/kilocode`) | Any (500+ models) | Kilo account. Listed by Z.ai and Alibaba coding plans | `kilo run` (unverified, believed to be OpenCode-derived) | not on the ACP agents page | MCP, modes | MIT | v7.8.3, 2026-10-01 |
 | Droid (Factory) | Any frontier model. BYOK through `custom:` models | Factory account (`FACTORY_API_KEY`) | `droid exec`, `--output-format text\|json\|stream-jsonrpc`, `--auto low\|medium\|high` | native | AGENTS.md, MCP, custom droids (unverified) | proprietary | not on GitHub releases |
-| Amp (Sourcegraph/Amp) | Amp chooses the model by mode (smart/rush/deep), or the user picks | Amp account. ChatGPT Plus/Pro sign-in (DevDay partner), BYOK | `-x/--execute`, stream JSON | not on the ACP list (unverified) | AGENTS.md, skills, plugins | proprietary | n/a |
+| Amp (Sourcegraph/Amp) | Amp chooses the model by mode (smart/rush/deep), or the user picks | Amp account. ChatGPT Plus/Pro sign-in (DevDay partner), BYOK | `-x/--execute`, stream JSON | not on the ACP agents page | AGENTS.md, skills, plugins | proprietary | n/a |
 | Aider (`Aider-AI/aider`) | Any (edit formats per model) | API keys | `--message`, `--yes` | no | conventions files | Apache-2.0 | v0.86.0, 2025-08-09 (no release in 14 months) |
 
 Other names worth knowing: GitHub Copilot CLI, Cursor CLI, Antigravity CLI
@@ -95,9 +97,10 @@ flow (`packages/ai/src/auth/oauth/anthropic.ts` in `earendil-works/pi`
 (https://learn.chatgpt.com/docs/non-interactive-mode, which
 developers.openai.com/codex/noninteractive redirects to). Auth: ChatGPT
 sign-in or API key, with device code for headless machines
-(https://learn.chatgpt.com/docs/auth). There is one prompt file per model
-family in `codex-rs/core/` (`gpt_5_codex_prompt.md`, `gpt_5_2_prompt.md`, and
-others). At DevDay (2026-09-29), "Sign in with ChatGPT" lets Plus/Pro
+(https://learn.chatgpt.com/docs/auth). There are prompt files per model
+family in `codex-rs/core/` (`gpt_5_codex_prompt.md` up to
+`gpt_5_2_prompt.md`); GPT-5.5/5.6/6 use `model_messages.instructions_template`
+in `codex-rs/models-manager/models.json`. At DevDay (2026-09-29), "Sign in with ChatGPT" lets Plus/Pro
 subscribers spend their plan allowance in third-party tools. Sixteen launch
 partners; named ones include Devin, Amp, Warp, OpenCode, OpenClaw, Notion and
 Vercel
@@ -130,7 +133,7 @@ links "Qwen Code Claw" (`openclaw/acpx`), which lets Claude or Codex hand
 tasks to Qwen Code over ACP. The Qwen3.8 repo (https://github.com/QwenLM/Qwen3.8)
 recommends Qwen Code and Qoder and says to serve with
 `--tool-call-parser qwen3_coder` (vLLM/SGLang). Qwen3.8-27B (open weights,
-2026-08-14) is the realistic local model. Qwen3.8-2.4T-A95B is not.
+created on HF 2026-08-05) is the realistic local model. Qwen3.8-2.4T-A95B is not.
 
 **Gemini CLI.** Headless: https://geminicli.com/docs/cli/headless/. Auth page
 (https://geminicli.com/docs/get-started/authentication/): "Unpaid tier and
@@ -148,12 +151,16 @@ Goose deprecated its Gemini OAuth pass-through for the same reason
 **ZCode.** The repo description is "Z.ai's coding agent harness". The README
 (Chinese) says it is a desktop app, a browser UI and a terminal agent, with
 the agent CLI in `apps/zcode-cli`. The Z.ai Coding Plan docs
-(https://docs.z.ai/devpack/overview) name Claude Code, Cline and OpenCode, and
-run a promotion: unlimited GLM-5.3-Flash in ZCode. A secondary list of
-supported tools (https://www.developersdigest.tech/blog/zcode-developer-guide-2026)
-adds Codex, Pi, Droid, Kilo, Roo, Crush, Goose and others. The plan states it
-is "designed specifically for AI-powered coding". I found no explicit ban on
-other uses.
+(https://docs.z.ai/devpack/overview) run a promotion: unlimited
+GLM-5.3-Flash in ZCode. The official tool list
+(https://docs.z.ai/devpack/tool/others): ZCode, Claude Code, Claude for IDE,
+Codex, OpenCode, Pi, Cursor, Cline, TRAE, Qoder, Droid, Kilo Code, Roo Code,
+Crush, Goose, Eigent, AutoClaw, OpenClaw, Hermes Agent, SillyTavern. The plan
+"is limited to use within the following officially supported tools and
+product environments; users may not use their subscription benefits for
+tools or scenarios outside of this scope". The FAQ
+(https://docs.z.ai/devpack/faq) says "strictly limited … shall not use the
+subscription benefits in any unsupported tools or scenarios".
 
 **Kimi Code CLI.** The Python `MoonshotAI/kimi-cli` was archived on
 2026-09-22 and replaced by `MoonshotAI/kimi-code`. Flags are in
@@ -188,10 +195,32 @@ WebFetch summary):
 | Claude Opus 4.7 | Claude Code 68.9 | 66.1 |
 | GPT-5.5 | Codex CLI 83.1 | 78.0 |
 | Gemini 3.1 Pro | Gemini CLI 65.8 | 65.6 |
+| Gemini 3 Pro (2025-11-18) | Gemini CLI 65.8 | 73.9 |
 
-Also on the board: GLM-5.1 in Claude Code, 58.7. No pairs on the board for
-DeepSeek, Qwen or Kimi in their own harnesses (unverified that none exist
-further down). DeepSeek reports V4-Pro-0813 at 87.9 on TB 2.1 "inside an agent
+Differences: +3.4, +2.8, +5.1, +0.2, −8.1.
+
+The same page's second chart, "Average accuracy across 14 representative
+agent–model pairs" (`data-model`/`data-agent`/`data-tb21`, curl, checked
+2026-10-04), gives 7 more TB 2.1 pairs:
+
+| Model | Vendor harness | Terminus 2 | Difference |
+|---|---|---|---|
+| GPT-5.3-Codex | Codex CLI 79.1 | 68.5 | +10.6 |
+| GPT-5.4 | Codex CLI 77.3 | 54.8 | +22.5 |
+| GPT-5.4 mini | Codex CLI 66.1 | 36.9 | +29.2 |
+| Opus 4.6 | Claude Code 70.1 | 63.8 | +6.3 |
+| Sonnet 4.6 | Claude Code 58.5 | 51.5 | +7.0 |
+| Gemini 3 Flash | Gemini CLI 56.9 | 54.2 | +2.7 |
+| Gemini 3.1 Pro | Gemini CLI 67.1 | 70.7 | −3.6 |
+
+Gemini 3.1 Pro appears twice with different numbers (main board 65.8 vs
+65.6; chart 67.1 vs 70.7), so these are separate runs. Across all 12 pairs:
+Claude Code and Codex always beat Terminus 2; Gemini CLI is mixed. The Gemini 3 Pro pair was read
+from the page's row attributes (`data-model`/`data-agent`/`data-score`,
+curl, checked 2026-10-04). Also on the board: GLM-5.1 in Claude Code, 58.7.
+The board has 18 rows; none is DeepSeek, Qwen or Kimi. Newer
+single-harness rows (GPT-6 Astra on Codex 87.4, Opus 4.8 on Claude Code
+78.9) have no Terminus 2 row to compare. DeepSeek reports V4-Pro-0813 at 87.9 on TB 2.1 "inside an agent
 execution environment"
 (https://venturebeat.com/technology/deepseek-harness-launches-as-open-source-rival-to-claude-code-alongside-v4-pro-on-api-with-higher-prices).
 Which harness was used is unverified. Vals' Terminal-Bench 4.0 runs every
@@ -225,9 +254,9 @@ Candidates, most likely first:
      model.
    - DSH also exposes itself over ACP (`dsh --profile acp`), so an Attractor
      could drive it as one more backend.
-   - Press reports "hook bridges that read the hooks.json you already wrote
-     for Claude Code" (https://www.mindstudio.ai/blog/deepseek-harness-coding-agent,
-     unverified in the repo).
+   - Hook bridges that read Claude Code's `hooks.json`: verified in the repo
+     (`packages/hooks/hooks-claude-code/`, design note
+     `.agents/notes/archived/feature/2026-06-30-hook-bridges.md`, master).
 2. **DeepSeek's Anthropic-compatible API used with Claude Code.**
    https://api-docs.deepseek.com/guides/coding_agents/ ("Integrate with AI
    Tools") covers Claude Code (`ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`),
@@ -246,9 +275,10 @@ Yes, if the harness count stays small. The evidence:
   (Anthropic, OpenAI, Google, Qwen, DeepSeek, Z.ai, Moonshot) or tunes for
   one. Codex and OpenCode carry a separate prompt for each model family.
   Generic harnesses use a default prompt for GLM, DeepSeek and Qwen.
-- **Benchmarks.** For the same model, the vendor CLI beats Terminus 2 by
-  0.2 to 5 points on TB 2.1 (table above). The gain is real but small, about
-  one release of model progress. There are no public same-model comparisons
+- **Benchmarks.** For the same model, the vendor CLI scores −8.1 to +29.2
+  points against Terminus 2 on TB 2.1 (12 pairs, tables above). Claude Code
+  and Codex win every pair (+2.8 to +29.2, largest for GPT); Gemini CLI is
+  mixed (−8.1 to +2.7). There are no public same-model comparisons
   for the open-weight vendors.
 - **Subscriptions force part of the answer.**
   - Claude subscription: only through the `claude` binary.
@@ -264,8 +294,8 @@ Defensible mapping:
 | Model | Harness | Evidence | Fallback |
 |---|---|---|---|
 | Claude (Pro/Max) | Claude Code | ToS; TB 2.1 | none on subscription |
-| GPT (ChatGPT plan) | Codex CLI | TB 2.1; OpenAI's own | OpenCode or Pi (ChatGPT sign-in) |
-| Qwen3.8 local | Qwen Code | Qwen3.8 repo recommends it; Qwen-tuned | OpenCode or Pi (OpenAI-compatible endpoint) |
+| GPT (ChatGPT plan) | Codex CLI | TB 2.1; OpenAI's own | OpenCode (DevDay partner, ChatGPT sign-in); Pi's ChatGPT sign-in unverified as allowed |
+| Qwen3.8 local | Qwen Code | Qwen3.8 repo recommends it; Qwen-tuned | OpenCode or Pi (OpenAI-compatible endpoint). Caveat: works only as well as the server's tool parser (Ollama qwen3coder bugs, llama-server `--jinja`; see models.md) |
 | DeepSeek V4 | DeepSeek Harness | vendor's own; 87.9 TB 2.1 claim (harness unverified) | Claude Code via `/anthropic` endpoint (first in DeepSeek's docs); OpenCode |
 | GLM-5.3 | ZCode CLI (headless unverified) | vendor's own; promoted in the plan | Claude Code (Z.ai lists it; TB 2.1 GLM-5.1 = 58.7) |
 
@@ -304,8 +334,9 @@ What it costs:
 - **Churn (likely).** Claude Code and Qwen Code release almost daily; DSH
   is alpha; ACP adapters for Claude, Codex and Pi lag their CLIs. Each
   harness added multiplies breakage.
-- **Unproven gain.** No same-model evidence that the vendor harness beats
-  OpenCode or Pi for Qwen, DeepSeek or GLM. A small local eval would settle
+- **Unproven gain.** The vendor harness clearly helps for Claude and GPT,
+  but not reliably for Gemini (−8.1 to +2.7). No same-model evidence at all for Qwen,
+  DeepSeek or GLM. A small local eval would settle
   it before committing to five CLIs.
 - **Unverified pieces.** ZCode headless flags and OpenAI's partner sign-in
   list were not read from primary sources.
@@ -319,13 +350,19 @@ For the operator:
 2. Is the Attractor meant to *be* the orchestrator, or would it use DSH or
    Goose as the orchestrator over Claude Code and Codex?
 3. Is "Qwen 3.8" Qwen3.8-27B (open weights, runs locally)? On what server
-   (vLLM, SGLang, llama.cpp, Ollama)?
+   (Ollama, llama-server, LM Studio or mlx_lm.server; vLLM targets CUDA)
 4. For GLM and DeepSeek: API keys, the GLM Coding Plan, or local weights?
 5. How many CLIs are you willing to maintain? All vendor harnesses, or
    Claude Code + Codex + one generic harness?
 6. Driving the `claude` binary headless with your own Pro/Max login looks
-   allowed ("unmodified Claude Code binary"). Heavy parallel automation may
-   not be "ordinary, individual usage". Do you accept that risk, or use an
+   allowed ("unmodified Claude Code binary"). Anthropic "does not permit
+   third-party developers to offer Claude.ai login into their own
+   applications, or to route requests through Free, Pro, or Max plan
+   credentials on behalf of their users", and limits "assume ordinary,
+   individual usage of Claude Code and the Agent SDK". DSH reuses the
+   host's own login (subagent-claude-code README:60), which suggests
+   personal use is tolerated. Heavy parallel automation may not be
+   "ordinary, individual usage". Do you accept that risk, or use an
    API key for pipeline runs?
 
 To research:
