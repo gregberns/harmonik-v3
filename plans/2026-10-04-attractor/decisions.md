@@ -13,7 +13,7 @@ spec builds on the answers. Source files are in [research/](research/).
 | 6 | Fabro: is its churn (nightly breakage, git-main deps) and single-company control acceptable? | impl-fabro.md | Worth investigating hands-on (2026-10-04). |
 | 7 | Sandboxing: against mistakes (harness policy sandbox) or against hostile code (container or VM)? | sandboxes.md | Deferred: hold off on sandboxes (2026-10-04). |
 | 8 | Is the Attractor the orchestrator, or does something like dsh or Goose orchestrate Claude Code and Codex? | harnesses.md | Something external drives the Attractor; out of scope. The Attractor needs an interface a driver can use (start, status, stop). Kilroy looked easy to drive; Fabro unknown (2026-10-04). |
-| 9 | How many agent CLIs to maintain: Claude Code + Codex + one multi-model harness (OpenCode or Pi), or each vendor's own harness? | harnesses.md | Open: depends on what 'agent tools' means; operator is working out how the pieces fit (2026-10-04). |
+| 9 | How many agent CLIs to maintain: Claude Code + Codex + one multi-model harness (OpenCode or Pi), or each vendor's own harness? | harnesses.md | Withdrawn as premature: the architecture is undecided. Operator's view: the hard part is that Claude Code and Codex differ fundamentally; Qwen/DeepSeek/GLM are easy (a simple loop or Pi) (2026-10-04). |
 
 Host facts (2026-10-04): docker is installed (likely Docker Desktop);
 OrbStack, Colima, Podman, Apple `container` and sbx are not; macOS 26.4.1.
