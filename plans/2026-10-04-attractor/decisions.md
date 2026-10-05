@@ -63,3 +63,5 @@ Design review with the operator (2026-10-05):
 |---|---|---|---|
 | 25 | Session ids? | design.md §1 | The engine mints a GUID per agent session and passes it through the interface (request field, `{session_id}` template, `PAS_SESSION_ID` env) so profiles can hand it to agents that accept one (`claude --session-id <uuid>`). Handlers may ignore it. The id the agent actually used is recorded, enabling later session restart and other uses. |
 | 26 | No mid-run control in the one-call interface (design.md §1)? | design.md §1 | Acceptable for now; a single added call could provide it later. |
+| 27 | Keep agents' session files (drop `--no-session-persistence` and Codex `--ephemeral`)? | design.md §2 | Yes, drop them: session files should stay. No setting needed. |
+| 28 | When a node runs again (retry, or a loop back such as implement → review → implement), new session or continue? | design.md §1 | Continue the node's previous session, so the agent keeps its context. The operator's earlier engine did this after review steps. Map it onto the spec's context fidelity: `full` = resume the session, with `thread_id` to share one session across nodes (§5.4). |
