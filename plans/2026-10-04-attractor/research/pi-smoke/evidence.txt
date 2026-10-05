@@ -1,0 +1,56 @@
+# Pi 1.0.3 smoke test against local Qwen3.8-27B-4bit (mlx_lm.server), 2026-10-05
+
+Binary: the scratch install `<scratchpad>/pi-npm/node_modules/.bin/pi`
+(`npm install --prefix <scratchpad>/pi-npm @earendil-works/pi-coding-agent@1.0.3`).
+`$PI --version` printed `1.0.3`. This is not the operator's global `pi` on
+PATH. The model server was
+`mlx_lm.server --model mlx-community/Qwen3.8-27B-4bit --host 127.0.0.1 --port 8081`.
+
+Environment for every run (no user config touched):
+
+    export HOME=<scratch> PI_CODING_AGENT_DIR=<scratch>/agent PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0
+    cd <scratch>/work   # fresh `git init`
+    settings.json: {"retry":{"enabled":false}}
+
+## models.json (isolated PI_CODING_AGENT_DIR)
+{ "providers": { "mlx": { "baseUrl": "http://127.0.0.1:8081/v1", "api": "openai-completions", "apiKey": "dummy",
+  "models": [ { "id": "mlx-community/Qwen3.8-27B-4bit", "contextWindow": 32768, "maxTokens": 4096,
+                "compat": { "supportsDeveloperRole": false } } ] } } }
+
+## run 1: tool round-trip (session smoke-1), exit 0, 40 s
+Command:
+
+    $PI --mode json --session-dir <scratch>/sess --session-id smoke-1 --model mlx/mlx-community/Qwen3.8-27B-4bit --thinking off "Create hello.txt containing exactly: hi from pi. Then reply DONE." </dev/null > d1.jsonl
+
+{"type":"message_end","toolName":null,"isError":null,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":"toolUse"}
+{"type":"tool_execution_end","toolName":"write","isError":false,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":"toolUse"}
+{"type":"tool_execution_end","toolName":"bash","isError":false,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":null}
+{"type":"message_end","toolName":null,"isError":null,"stop":"stop"}
+hello.txt: hi from pi
+
+## run 2: resume (same --session-dir/--session-id), exit 0
+Command:
+
+    $PI --mode json --session-dir <scratch>/sess --session-id smoke-1 --model mlx/mlx-community/Qwen3.8-27B-4bit --thinking off "What exact text did you write into which file? Answer in one line." </dev/null > d2.jsonl
+
+final stopReason: stop
+final text:
+I wrote the exact text `hi from pi` (12 bytes, no trailing newline) into `hello.txt`.
+session file header:
+{"type":"session","version":3,"id":"smoke-1","timestamp":"2026-10-05T13:56:23.684Z","cwd":"<scratch>/work"}
+
+## run 3: unknown model id, exit 0
+Command:
+
+    $PI --mode json --no-session --model mlx/no-such-model --thinking off "hi" </dev/null > e1.jsonl
+
+stderr: `Warning: Model "no-such-model" not found for provider "mlx". Using custom model id.`
+Pi passed the id through. mlx_lm.server then tried to fetch it from Hugging
+Face and answered 404, wrapping that download's 401 "Repository Not Found".
+Pi reported it as below (errorMessage truncated to 120 chars here):
+{"stopReason":"error","errorMessage":"404 \"401 Client Error. (Request ID: Root=1-6ac3acbd-0b536efc5a1173a329dc1687;7da53493-1af6-4997-b94c-9015c548c6b0)\\n\\nRe"}

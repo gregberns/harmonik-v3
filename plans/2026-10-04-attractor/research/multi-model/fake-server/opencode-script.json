@@ -1,0 +1,12 @@
+[{"m":"initialize","p":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false}}},
+ {"m":"session/new","p":{"cwd":"$CWD","mcpServers":[]}},
+ {"m":"session/prompt","p":{"sessionId":"$SID","prompt":[{"type":"text","text":"say hi"}]}},
+ {"m":"session/set_config_option","p":{"sessionId":"$SID","configId":"model","value":"fe400/fake-model"}},
+ {"m":"session/prompt","p":{"sessionId":"$SID","prompt":[{"type":"text","text":"say hi"}]}},
+ {"m":"session/set_config_option","p":{"sessionId":"$SID","configId":"model","value":"fe401/fake-model"}},
+ {"m":"session/prompt","p":{"sessionId":"$SID","prompt":[{"type":"text","text":"say hi"}]}},
+ {"m":"session/set_config_option","p":{"sessionId":"$SID","configId":"model","value":"fe429/fake-model"}},
+ {"m":"session/prompt","p":{"sessionId":"$SID","prompt":[{"type":"text","text":"say hi"}]}},
+ {"m":"session/set_config_option","p":{"sessionId":"$SID","configId":"model","value":"fok/not-in-catalog"}},
+ {"m":"session/list","p":{}}
+]

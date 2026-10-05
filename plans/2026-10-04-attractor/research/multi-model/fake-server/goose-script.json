@@ -1,0 +1,3 @@
+[["initialize",{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false}}],
+ ["session/new",{"cwd":"<scratchpad>/goose-exp/work","mcpServers":[]}],
+ ["session/prompt",{"sessionId":"$SID","prompt":[{"type":"text","text":"say hi"}]}]]

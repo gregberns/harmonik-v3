@@ -5,7 +5,7 @@ Date checked: 2026-10-04. Clone at HEAD `7fc0edbf8` (2026-10-03), workspace vers
 unless prefixed with a local clone folder name (`lithos-petri/`, `lithos-pebble/`,
 `lithos-llm/`, `sandbox-driver/`). These are github.com/lithoscomputer/petri,
 /pebble, /lithos-llm and /sandbox-driver, cloned at their `main` branches on
-2026-10-04. petri, pebble and sandbox-driver are MIT; lithos-llm is Apache-2.0.
+2026-10-04. petri, pebble and sandbox-driver are MIT; lithos-llm is MIT OR Apache-2.0 (`lithos-llm/Cargo.toml:7`, both LICENSE files; GitHub's API shows only Apache-2.0).
 
 ## Summary
 
