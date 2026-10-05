@@ -42,3 +42,17 @@ Direction for this iteration (operator, 2026-10-04):
 Correction (operator, 2026-10-04): DeepSeek and GLM now each have their own
 harness (released around August 2026). acp.md and models.md say otherwise
 and need updating.
+
+Further direction for the fork (operator, 2026-10-04):
+
+| # | Question | Source | Answer |
+|---|---|---|---|
+| 16 | Commits? | impl-harmonik-attractor.md | Commit after every node, as Kilroy does; the commit is the proof the node completed. |
+| 17 | Worktree location? | impl-kilroy.md | Configurable, never hard-coded: a project-level default, overridable on the CLI. |
+| 18 | Spec coverage? | operator | Check the fork against the strongdm/attractor spec for other significant missing pieces. |
+| 19 | Testing? | operator | A test harness that needs no real agent: a fake agent (an executable or script, loaded by config) acting as a digital twin, so the engine can be tested end to end on every change. |
+| 20 | Run output and transcripts? | impl-harmonik-attractor.md | Each run writes its output and agent transcripts to a well-defined place that another process or agent can read, e.g. to spot a hung agent. Files on disk are enough for now. A future queue will start one process per work item; not in scope. Agents driving or reading the monitor is low priority. |
+| 21 | `--bare` becoming the default for `claude -p`? | poc-claude-subscription.md | Ignore; don't plan for it. Work around it if and when it happens. |
+| 22 | Crashes and timeouts? | impl-harmonik-attractor.md | Need better handling than failing the run outright (unroutable today). |
+| 23 | Remote execution? | operator | The handler interface must allow a handler that runs the agent on another machine (e.g. the CLI on one host triggers the agent on another). Make it possible; don't build it. |
+| 24 | Move to design? | operator | Yes, once the research is deep enough to be confident. Use the design skills so the design is thorough. |
