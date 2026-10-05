@@ -244,7 +244,38 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
   `API_TIMEOUT_MS=3000000`, and maps opus and sonnet to `glm-5.3[1m]` and
   haiku to `glm-5.3-flash[1m]`. The page's default-mapping text says all
   three map to GLM-5.3-Flash, which contradicts its own example. Z.ai also
-  has its own tool, ZCode, which uses 1.5 times the plan usage (unverified, no source found).
+  has its own tool, ZCode, listed as "ZCode (1.5× Usage)"
+  (https://docs.z.ai/devpack/tool/others).
+
+### Vendor harnesses: DeepSeek `dsh` and Z.ai ZCode
+
+Checked 2026-10-05; sources pinned to `deepseek-ai/deepseek-harness@5badb15`
+(2026-10-03) and `zai-org/ZCode@29628c9` (2026-09-24). Code and docs read;
+nothing installed, no model calls.
+
+| | DeepSeek Harness (`dsh`) | ZCode (Z.ai, GLM) |
+|---|---|---|
+| Package, license | npm `@deepseek-ai/dsh`, MIT; `latest` 0.2.0-rc.2 (2026-09-29), `alpha` 0.2.1-alpha.1; all prerelease, "THERE WILL BE COMPATIBILITY-BREAKING CHANGES" (`README.md:13`) | `zai-org/ZCode`, Apache-2.0; release v3.14.3 (2026-09-24); CLI in `apps/zcode-cli` (`package.json` private `zcode-cli` 0.16.9; package `@zcode/cli` 0.1.0), no official npm package |
+| Install, launch | `npm i -g @deepseek-ai/dsh` or `npx @deepseek-ai/dsh web` (`README.md:24`) | official docs cover desktop installers only (zcode.z.ai/en/docs/install); CLI from source: `pnpm --filter @zcode/cli... build`, then `node apps/zcode-cli/packages/cli/dist/zcode.cjs` (`README.en.md:103-116`). npm `zcode-app-cli` is an unofficial wrapper |
+| ACP | native `dsh --profile acp`; not in the registry (see acp.md) | none; `zcode app-server` is ZCode's own protocol |
+| Headless | `dsh --profile headless "<task>" [--json] [--session-id]`; `--json` = NDJSON `session`, `status`, `text`, `thinking`, `tool_call`, `tool_result`, `final` (or `error`); exit 0/1 (`packages/bundle/headless/README.md:12-58`). An in-turn failure still ends with `final` and no `error` event, so the driver must use exit 1 and the `turn_end` reason (`:58`), the same trap as Codex's `end_turn` | `zcode -p "<prompt>" --output-format text\|json\|stream-json`; stream-json ends with `{"type":"result",...}` (`prompt-command.ts:347-366`); per-event schema UNVERIFIED |
+| Pay-per-token auth | `DEEPSEEK_API_KEY` env, else `~/.dsh/.credentials.yaml`, `<cwd>/.env`, `$DSH_HOME/.env` (precedence: `packages/credentials/credentials-local/README.md:71-78`) | no API-key env var found; key in `~/.zcode/v2/provider_config.json` (`provider-runtime-env.ts:60,75-76`). Pay-as-you-go template `zai-standard-api`: OpenAI chat, `https://api.z.ai/api/paas/v4`. Coding Plan template `zai-api`: Anthropic, `https://api.z.ai/api/anthropic` (`config/provider/zcode-builtin.json`) |
+| Model, reasoning, endpoint | no CLI flags; YAML patch rows via `--patch file.yml` or `$DSH_HOME/cordis.patch.yml`: model in `agent-default-model` (default `deepseek-flash`, `packages/bundle/base/cordis.patch.yml:82-86`); `llm-deepseek` row: `reasoningEffort` off/low/high/max (default high), `thinking`, `baseURL` (default `https://api.deepseek.com/anthropic`, or `$DEEPSEEK_BASE_URL`) (`packages/llm/llm-deepseek/README.md:44, 56-58`). Over ACP: `session/set_config_option` | no CLI flags; `defaultModelSelection {providerId, modelId, options.reasoningLevel}` in `provider_config.json` (shape: `packages/shared/src/model-selection.ts:6-10`; repository `model-selection-config-repository.ts:17-30`), or `/model` in the TUI; endpoint = provider `api.baseUrl`. A driver can point ZCode at its own config with `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE` or `ZCODE_DATA_BASE_DIR` (`provider-runtime-env.ts:59-60`). File's top-level layout UNVERIFIED |
+| Headless in a cwd | no `--cwd`; uses the launch directory (`apps/cli/README.md:20`); no git or trust check found (UNVERIFIED at runtime) | `--cwd <dir>` (`cwd.ts:11-34`), else process cwd |
+| Permissions | `DSH_PERMISSION_MODE` = `read-only`, `workspace-write` (default, OS sandbox), `danger-full-access`; headless has no approval answerer, so every approval request fails closed (`packages/interaction/user-approval/README.md:156`; modes in `base/cordis.patch.yml:229-262`) | `--mode build\|edit\|plan\|yolo`; **default for `-p` is `yolo`** (`run.ts:42`, `DEFAULT_HEADLESS_PROMPT_MODE`). Risk: unlike dsh's fail-closed default, a headless ZCode run is full-auto unless the driver passes `--mode build` or `--mode edit` |
+
+- `dsh` also ships subagent plugins that hand a task to Claude Code, Codex
+  or any ACP agent, and hook bridges for Claude Code and Codex `hooks.json`
+  (`packages/subagent/`, `packages/hooks/`).
+- Dates for "around August 2026": dsh's first npm release 0.0.1-rc.1 was
+  2026-08-10 (repo 2026-08-13). ZCode's desktop app launched 2026-07-02
+  (https://www.digitalapplied.com/blog/zcode-glm-5-2-agentic-development-environment-guide),
+  its plugins repo `zai-org/zcode-plugins` on 2026-08-26, and its source
+  went public 2026-09-20.
+- Z.ai released no other GLM CLI: zai-org repos created since June 2026 are
+  ZCode (2026-09-20), zcode-plugins (2026-08-26) and research,
+  benchmark and feedback repos (AISE-Bench, SurveyReview, SCAIL-2,
+  feedback); none is a coding CLI (`gh api orgs/zai-org/repos`). `zai-cli` packages on npm are third-party.
 
 ### Others (optional)
 
@@ -261,8 +292,8 @@ Speed: a dense 27B at Q4 on an M1 Max (400 GB/s) should give roughly
 |---|---|---|---|---|---|---|---|
 | Qwen (local) | Qwen3.8-27B (2026-08-05); Flash-Next 2026-08-24 | Yes, 27B at Q4-Q8 (16-29 GB); Flash-Next and Max no | Ollama `:11434/v1`, llama-server `:8080/v1`, LM Studio `:1234/v1`, mlx_lm.server | Ollama `:11434`, llama-server `:8080`, LM Studio `:1234` (all `/v1/messages`) | n/a | Qwen Code; Qwen benchmarks in Claude Code | huggingface.co/Qwen/Qwen3.8-27B, docs.ollama.com, llama.cpp HF blog |
 | Qwen (hosted) | Qwen3.8-Max (2026-08-03) | n/a | QwenCloud (path not checked) | `https://maas.qwencloudapi.com/apps/anthropic`; Token Plan `https://token-plan.maas.qwencloudapi.com/apps/anthropic` | Token Plan $6-$68 a month (personal, limited-time; regular $8-$80), any tool allowed; also serves glm-5.2 and deepseek-v4-pro | Qwen Code, Claude Code | docs.qwencloud.com |
-| DeepSeek | V4.1-Flash (2026-09-10), V4-Pro-0813 | No | `https://api.deepseek.com` | `https://api.deepseek.com/anthropic` | None, API only, off-peak half price | DeepSeek Harness (dsh, preview); Claude Code documented | api-docs.deepseek.com |
-| GLM | GLM-5.3 (2026-08-18), GLM-5.3-Flash (2026-08-26) | No; GLM-4.7-Flash 30B-A3B yes | `https://api.z.ai/api/paas/v4` (coding: `.../api/coding/paas/v4`) | `https://api.z.ai/api/anthropic` | GLM Coding Plan $18 / $80 / $168 a month, listed tools only (includes Pi, OpenCode, Claude Code) | Claude Code (lead); ZCode is Z.ai's own | docs.z.ai |
+| DeepSeek | V4.1-Flash (2026-09-10), V4-Pro-0813 | No | `https://api.deepseek.com` | `https://api.deepseek.com/anthropic` | None, API only, off-peak half price | DeepSeek Harness (dsh, prerelease; native ACP, headless JSON); Claude Code documented | api-docs.deepseek.com |
+| GLM | GLM-5.3 (2026-08-18), GLM-5.3-Flash (2026-08-26) | No; GLM-4.7-Flash 30B-A3B yes | `https://api.z.ai/api/paas/v4` (coding: `.../api/coding/paas/v4`) | `https://api.z.ai/api/anthropic` | GLM Coding Plan $18 / $80 / $168 a month, listed tools only (includes Pi, OpenCode, Claude Code) | Claude Code (lead); ZCode is Z.ai's own (headless `-p` JSON, no ACP) | docs.z.ai |
 
 ## Open questions
 

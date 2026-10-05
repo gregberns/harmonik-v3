@@ -46,7 +46,7 @@ Release dates are from GitHub releases.
 | Qwen Code (`QwenLM/qwen-code`) | Qwen ("optimized for Qwen models"). Forked from Gemini CLI v0.8.2 | Alibaba Cloud Coding Plan / Token Plan. The free Qwen OAuth tier ended 2026-04-15 | `-p`, `--output-format text\|json\|stream-json` | native (ACP list). `qwen serve` daemon is experimental | `--system-prompt`, `--append-system-prompt`, MCP, skills, subagents (unverified detail) | Apache-2.0 | v0.24.7, 2026-09-29 (nightlies daily) |
 | Gemini CLI (`google-gemini/gemini-cli`) | Gemini | Sign in with Google for paid tiers. Unpaid and Google One users were moved to Antigravity CLI on 2026-06-18 | `-p`, `--output-format json\|stream-json` | native | extensions, GEMINI.md, MCP | Apache-2.0 | v0.62.0, 2026-09-29 |
 | DeepSeek Harness `dsh` (`deepseek-ai/deepseek-harness`) | DeepSeek V4 (direct adapter). Other providers go through pi-ai (Pi's model library) | DeepSeek API key. Codex OAuth "not supported yet" in the UI (community plugin exists) | `dsh --profile headless "<task>" [--json]` (NDJSON) | native: `dsh --profile acp` (server), `subagent-acp` (client); not on the ACP agents page | everything is a plugin (Cordis), presets, personas, skills, hooks, MCP | MIT | dsh-v0.2.1-alpha.1, 2026-10-03 (developer preview) |
-| ZCode (`zai-org/ZCode`) | GLM-5.3 | GLM Coding Plan, Z.ai/BigModel key | has an agent CLI (`apps/zcode-cli`). Headless flags unverified | not on the ACP agents page | plugins (`.zcode-plugin/plugin.json`), MCP, skills | Apache-2.0 | v3.14.3, 2026-09-24 |
+| ZCode (`zai-org/ZCode`) | GLM-5.3 | GLM Coding Plan, Z.ai/BigModel key | `zcode -p "<prompt>" --output-format stream-json --cwd <dir>` (see the models.md vendor table) | none: own `app-server` protocol; not on the ACP agents page | plugins (`.zcode-plugin/plugin.json`), MCP, skills | Apache-2.0 | v3.14.3, 2026-09-24 |
 | Kimi Code CLI (`MoonshotAI/kimi-code`) | Kimi | Kimi Code OAuth (Kimi membership, Plus tier and up) or Moonshot key | `-p`, `--output-format text\|stream-json` | native: `kimi acp` | plugins marketplace, skills, MCP, hooks, subagents | MIT | 2.1.1, 2026-09-24 |
 | Crush (`charmbracelet/crush`) | Any (Catwalk catalog). Charm's own provider is "Hyper" (subscription) | Hyper subscription. Others by API key | `crush run` (text only, no JSON flag in `internal/cmd/run.go`) | not listed | CRUSH.md / AGENTS.md, skills, hooks (preliminary), MCP | FSL-1.1-MIT | v0.97.1, 2026-09-29 |
 | Goose (`block/goose` → `aaif-goose/goose`) | Any | can delegate to Claude Code / Codex through ACP providers (`claude-acp`, `codex-acp`). The older CLI pass-through providers are deprecated | `goose run -t ... --output-format json\|stream-json` | native: `goose acp` | recipes, MCP extensions, subagents | Apache-2.0 | v1.53.0, 2026-10-02 |
@@ -297,7 +297,7 @@ Defensible mapping:
 | GPT (ChatGPT plan) | Codex CLI | TB 2.1; OpenAI's own | OpenCode (DevDay partner, ChatGPT sign-in); Pi's ChatGPT sign-in unverified as allowed |
 | Qwen3.8 local | Qwen Code | Qwen3.8 repo recommends it; Qwen-tuned | OpenCode or Pi (OpenAI-compatible endpoint). Caveat: works only as well as the server's tool parser (Ollama qwen3coder bugs, llama-server `--jinja`; see models.md) |
 | DeepSeek V4 | DeepSeek Harness | vendor's own; 87.9 TB 2.1 claim (harness unverified) | Claude Code via `/anthropic` endpoint (first in DeepSeek's docs); OpenCode |
-| GLM-5.3 | ZCode CLI (headless unverified) | vendor's own; promoted in the plan | Claude Code (Z.ai lists it; TB 2.1 GLM-5.1 = 58.7) |
+| GLM-5.3 | ZCode CLI (headless `-p`; models.md vendor table) | vendor's own; promoted in the plan | Claude Code (Z.ai lists it; TB 2.1 GLM-5.1 = 58.7) |
 
 What it costs:
 
@@ -338,7 +338,8 @@ What it costs:
   but not reliably for Gemini (−8.1 to +2.7). No same-model evidence at all for Qwen,
   DeepSeek or GLM. A small local eval would settle
   it before committing to five CLIs.
-- **Unverified pieces.** ZCode headless flags and OpenAI's partner sign-in
+- **Unverified pieces.** ZCode's per-event stream schema (flags are now in
+  the models.md vendor table) and OpenAI's partner sign-in
   list were not read from primary sources.
 
 ## Open questions
@@ -366,8 +367,9 @@ For the operator:
    API key for pipeline runs?
 
 To research:
-- Do ZCode CLI and Qwen Code have a stable headless JSON contract? I have not
-  read the ZCode CLI flags.
+- Do ZCode CLI and Qwen Code have a stable headless JSON contract? ZCode's
+  flags are in the models.md vendor table; its per-event schema is
+  undocumented.
 - Does DSH's Claude Code subagent (Agent SDK, pinned CLI, user's
   subscription) fall under "developers ... should use API key
   authentication"?

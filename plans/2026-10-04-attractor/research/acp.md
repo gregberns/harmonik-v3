@@ -14,7 +14,9 @@ version is v1 (schema 1.24.1); v2 is a draft.
 Most harnesses the operator cares about can be driven this way:
 
 - Natively: OpenCode, Gemini CLI, Qwen Code, Goose, Kimi CLI, Cursor, Copilot
-  CLI, Cline, Kilo and others.
+  CLI, Cline, Kilo, DeepSeek Harness (`dsh --profile acp`, not in the
+  registry) and others. GLM's own harness, Z.ai ZCode, has no ACP (headless
+  JSON only).
 - Through an adapter: Claude Code (`claude-agent-acp`, built on the Claude
   Agent SDK), Codex (`codex-acp`, built on the Codex App Server) and Pi
   (`pi-acp`, a third-party adapter).
@@ -278,14 +280,38 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
     not offered over ACP.
 - **Goose** (native): `goose acp` (registry, v1.53.0).
 - **Kimi CLI** (native): `kimi acp` (registry, v1.52.0).
-- **GLM**: `glm-acp-agent` is a third-party npx package
-  (https://github.com/stefandevo/glm-acp-agent, registry v1.14.0).
-  Alternatively, run a GLM coding plan through Claude Code's Anthropic-
-  compatible base URL (`ANTHROPIC_BASE_URL`) via the Claude adapter, or
-  through OpenCode (unverified for ACP specifically).
-- **DeepSeek**: no dedicated ACP agent in the registry. Reach it through a
-  harness with an OpenAI- or Anthropic-compatible provider (OpenCode, Qwen
-  Code, Pi, Goose); unverified end to end.
+- **DeepSeek: DeepSeek Harness (`dsh`), native ACP, not in the registry.**
+  Checked 2026-10-05 at `deepseek-ai/deepseek-harness@5badb15` and registry
+  `c1ff2a7`; nothing installed or run.
+  - MIT; npm `@deepseek-ai/dsh` (`latest` 0.2.0-rc.2, 2026-09-29; `alpha`
+    0.2.1-alpha.1, 2026-10-03); all releases are prereleases, and the README
+    warns "THERE WILL BE COMPATIBILITY-BREAKING CHANGES" (`README.md:13`).
+  - `dsh --profile acp` serves ACP v1 over stdio
+    (`apps/cli/README.md:13`). "Automation-only": `initialize`,
+    `authenticate` (no methods), `session/new` (absolute `cwd`), `list`,
+    `resume`, `close`, `set_config_option` (`model`, `reasoning_effort`),
+    `prompt`, `cancel`, `request_permission`. No `session/load`, modes,
+    terminals or client fs (`packages/acp/acp/README.md:60-76`).
+  - Not in the ACP registry; only unmerged community PRs (#506, #509, #510,
+    #632, #638), none from deepseek-ai.
+  - Auth: `DEEPSEEK_API_KEY` (pay per token), else `~/.dsh/.credentials.yaml`,
+    `<cwd>/.env`, `$DSH_HOME/.env`
+    (`packages/credentials/credentials-local/README.md:44-45`).
+  - Headless alternative: `dsh --profile headless "<task>" --json` (NDJSON;
+    details in models.md).
+- **GLM: Z.ai ZCode, no ACP.** Checked 2026-10-05 at `zai-org/ZCode@29628c9`.
+  - Apache-2.0; Z.ai's "coding agent harness"; repo public 2026-09-20,
+    release v3.14.3 (2026-09-24). Desktop app plus a terminal CLI
+    (`apps/zcode-cli`) that has no official npm package: build from source.
+  - No ACP: `zcode app-server` speaks ZCode's own protocol. Not in the
+    registry; two unmerged community adapter PRs (#566, #650).
+  - Headless: `zcode -p "<prompt>" --output-format stream-json --cwd <dir>`
+    (details in models.md).
+  - `glm-acp-agent` (https://github.com/stefandevo/glm-acp-agent, registry
+    v1.14.0) is third-party: its own agent loop, GLM Coding Plan endpoint
+    only (`https://api.z.ai/api/coding/paas/v4`, env `Z_AI_API_KEY`), so not
+    usable on the operator's pay-per-token key without `ACP_GLM_BASE_URL`
+    (UNVERIFIED whether that override accepts the pay-as-you-go endpoint).
 - **Others in the registry** (2026-10-05 head): Auggie (`auggie --acp`),
   Cursor (`cursor-agent acp`), GitHub Copilot CLI (`copilot --acp`), Cline,
   Kilo, Factory Droid, Junie, Mistral Vibe, Devin, Amp (adapter), Grok
@@ -388,8 +414,9 @@ work.
 | Qwen Code | native | `qwen --acp` | No; ACP auth offers only an OpenAI-compatible API key | qwen-code `packages/cli/src/acp-integration/authMethods.ts`; registry v0.24.7 |
 | Goose | native | `goose acp` | Unverified | registry v1.53.0 |
 | Kimi CLI | native | `kimi acp` | Unverified | registry v1.52.0 |
-| GLM | third-party agent | `npx glm-acp-agent` | Unverified | registry v1.14.0 |
-| DeepSeek | none dedicated | through OpenCode, Qwen Code, Pi or Goose | Not applicable (API key) | registry listing |
+| DeepSeek Harness (`dsh`) | native, not in registry | `dsh --profile acp` | No subscription; `DEEPSEEK_API_KEY` | deepseek-harness@5badb15 `apps/cli/README.md:13`; npm 0.2.0-rc.2 |
+| ZCode (Z.ai, GLM) | none (own `app-server` protocol); headless `zcode -p` | — | Pay per token: a `zai-standard-api` key in `~/.zcode/v2/provider_config.json`; `zcode login` is Coding Plan OAuth only (`login-command.ts:15-17`, `command-center/login-flow.ts:14-16`), ruled out by decisions.md Q2 | ZCode@29628c9; community PRs #566, #650 |
+| GLM via `glm-acp-agent` | third-party agent | `npx glm-acp-agent` | Coding Plan endpoint by default (`Z_AI_API_KEY`) | registry v1.14.0 |
 | Auggie | native | `auggie --acp` | Unverified | registry v0.36.0 |
 | Copilot CLI | native | `copilot --acp` | Unverified | registry v1.0.91 |
 | Cursor | native | `cursor-agent acp` | Unverified | registry 2026.10.01 |
