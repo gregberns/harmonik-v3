@@ -111,7 +111,15 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
   when the agent asks for it), `session/prompt`", streams `session/update`,
   answers `session/request_permission` via run hooks, `session/cancel` for
   interrupts/steering. Written against the wire protocol, not the
-  `agent-client-protocol` crate.
+  `agent-client-protocol` crate. Fabro's own repo at `7fc0edbf8` has no ACP
+  crate and no `agent-client-protocol` dependency; ACP lives only in petri.
+  - Client limits: advertises `fs.readTextFile/writeTextFile: false` and no
+    terminal (`mod.rs:619`); never calls `session/set_config_option`,
+    `session/load` or `session/resume` (grep, 2026-10-04), so no model switch
+    over ACP and no session resume. Permission requests are auto-allowed
+    ("allow_always" when no `pre_tool_use` hook is configured, otherwise
+    "allow_once" unless the hook blocks; `mod.rs:25,372-415`, `hooks.rs:39`).
+    Cross-checked with the planner's acp.md.
   - Config: `acp.command` (shell-quoted line) or `acp.config` (JSON
     `{command,args,env}`, env values may be `{"$secret": NAME}`)
     (`lithos-petri/crates/attractor/steps/src/acp/command.rs:45-120`).
@@ -131,6 +139,8 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
     (`lithos-petri/crates/attractor/FORMAT.md:741-748`). Live test tier installs
     `@zed-industries/claude-code-acp@0.16.2 @google/gemini-cli@0.45.2`, `#[ignore]`,
     gated on API keys (`lithos-petri/crates/petri/lib/tests/acp_products.rs:4-7,52,435`).
+    That package is deprecated and renamed `@agentclientprotocol/claude-agent-acp`
+    (0.85.1 per acp.md), so the pinned test target is about 70 releases old.
   - Earlier Fabro plans mapped Anthropic → `claude-code-acp`, OpenAI/Kimi/Zai/
     MiniMax/OpenAI-compatible → `npx -y @zed-industries/codex-acp@latest`,
     Gemini → `gemini-cli --experimental-acp` (`docs/plans/2026-05-11-add-acp-backend.md:21-23`);
