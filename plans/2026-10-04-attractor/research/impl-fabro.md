@@ -38,7 +38,7 @@ Support matrix:
 | GLM (Z.ai) | Yes on pay-as-you-go; the Coding Plan route breaks Z.ai's terms | Built-in `zai` provider defaults to the **Coding Plan** endpoint (`lithos-llm/src/catalog/builtin/zai.toml:6,15`), but the plan is limited to listed tools and Fabro is not one (models.md). Override `base_url` to `/api/paas/v4` for pay-as-you-go. Catalog default model is `glm-5.2` (`zai.toml:21`); GLM-5.3 needs a model block you declare yourself. Not live-tested. |
 | Harness tuned per model (Q5) | Only via ACP | On the `api` backend, Qwen (ollama), DeepSeek and GLM all get the generic `openai` agent profile (`zai.toml:28`, `deepseek.toml:24`, `ollama.toml:26`). Valid profiles are anthropic, claude-5, openai, gemini, kimi, gpt56 and gpt6 (`docs/public/core-concepts/models.mdx:142`). A model-specific harness for these three is reachable only over ACP (e.g. Qwen Code, OpenCode, dsh), which is untested upstream. |
 | ACP | Yes, as client | `backend="acp"` + `acp.command` or `acp.config`; local and Docker sandboxes only (not Daytona per docs). Tested products: claude-code-acp 0.16.2, Gemini CLI `--acp`. |
-| Sandbox | Yes | Per-run "environment": `local` (no isolation), `docker` (default), `daytona` (cloud VM), plus third-party sandbox-driver plugins. Parallel branches use git worktrees. |
+| Sandbox | Yes | Per-run "environment": `local` (no isolation), `docker` (default), `daytona` (cloud VM), plus third-party sandbox-driver plugins. Parallel branches share one checkout, with no isolation (`docs/public/workflows/stages-and-nodes.mdx:170,208`). |
 
 ## Facts with sources
 
@@ -207,7 +207,10 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
   an LLM provider).
 - Clone-based workspaces for Docker/Daytona (depth 100) (`environments.mdx:273`).
   Local worktree mode removed 2026-05-09 (`docs/public/changelog/2026-05-09.mdx:15-19`);
-  parallel branches use isolated git worktrees (changelog 2026-03-01).
+  parallel branches now share one checkout. "Every branch runs in the same
+  sandbox checkout and working directory", and Fabro "does not isolate branch
+  files" (`docs/public/workflows/stages-and-nodes.mdx:170,208`). The
+  2026-03-01 changelog's isolated git worktrees are stale.
 - Granularity: per run, not per node (no node-level environment attribute in
   `dot-language.mdx`). Remote access: `fabro sandbox ssh`, `fabro sandbox preview`.
 - From the planner's sandboxes.md (not re-checked here):
@@ -230,10 +233,18 @@ Attractor spec coverage (spec files: `attractor-spec.md`,
   `lithos-petri/crates/core/steps/src/ctx.rs:149` `StepRunner`).
 - New sandbox: `SandboxProvider` trait (`sandbox-driver/crates/sandbox-driver/src/provider.rs:24`)
   or plugin protocol; pebble `Environment` trait (`lithos-pebble/crates/pebble-coding-agent/src/environment.rs:481`).
-- Per node: `backend`, `acp.command`, `model`, `provider` are node attributes and
-  settable from the stylesheet by class/id (`stylesheets.mdx:131`), so harness
-  can be chosen per node/class. Not per model automatically (the old auto mapping
-  was removed).
+- Per node:
+  - The stylesheet can set only `model`, `provider`, `reasoning_effort`,
+    `speed` and `backend` (`lithos-petri/crates/attractor/frontend/src/stylesheet.rs:13`).
+  - `acp.command` and `acp.config` are read only from the node or graph
+    (`lower/nodes.rs:452-487`).
+  - ACP nodes reject `model`, `provider` and `reasoning_effort`. Stylesheet
+    values for them are skipped (`lower/lints.rs:259-292`).
+  - So the harness command, and the model inside it, is fixed per node or
+    graph attribute, not per class. Not per model automatically either (the
+    old auto mapping was removed).
+  - Correction from the planner's driver-and-assembly.md, verified by the
+    plan-reviewer.
 
 ### 5. Project health
 
