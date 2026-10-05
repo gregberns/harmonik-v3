@@ -21,8 +21,9 @@ All facts checked 2026-10-04 unless marked otherwise.
 - Subscription logins can get into a container. For Claude Code, pass
   `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. For Codex, copy
   `~/.codex/auth.json`. Docker Sandboxes instead keeps credentials on the host
-  and injects them through its proxy. A container reaches host Ollama at
-  `host.docker.internal`.
+  and injects them through its proxy. Host Ollama is reachable at
+  `host.docker.internal` on Docker Desktop if Ollama binds beyond
+  127.0.0.1; untested for `sbx`, Apple `container` and blocked networks.
 - The Attractor spec abstracts this as `ExecutionEnvironment` in the
   coding-agent-loop spec. Only the local implementation is required; Docker,
   K8s, WASM and SSH are listed as extension points. The pipeline spec itself
@@ -78,15 +79,26 @@ Source: https://github.com/danshapiro/kilroy, commit `b55fb0f` (2026-04-27).
   - Codex: the default path runs `exec --json -m {{model}} -C {{worktree}}`
     (`providerspec/builtin.go:16`) with no `--sandbox` flag; commit
     `f23e0dc` (2026-03-03, "disable codex sandbox globally") removed it.
-    Only the `--tmux` template (`templates/codex.go:19`) still passes
+    But Codex docs say "By default, `codex exec` runs in a read-only
+    sandbox" (developers.openai.com/codex/noninteractive), Kilroy does not
+    copy `config.toml` into its isolated Codex home
+    (`agent_router.go:1636`), and no non-test code sets `sandbox_mode` or a
+    bypass flag. So the default path is likely a read-only sandbox, the
+    opposite of the commit's intent (untested).
+    Only the `--tmux` template (`templates/codex.go:20`) still passes
     `--sandbox workspace-write`.
+  - Codex app-server provider: `approvalPolicy: "never"`, `sandbox:
+    "danger-full-access"`, `sandboxPolicy: {type: dangerFullAccess}`
+    (`engine/agent_router.go:536-545`).
   - Gemini: `--yolo` (`providerspec/builtin.go:63`).
   - OpenCode: `run --format json --pure` (`templates/opencode.go`), with no
     sandbox flag.
 - `internal/attractor/engine/agent_router.go:1135-1149` strips Codex's
   `--sandbox` flag on "manual box fan-in" merge nodes, because `git merge`
   writes `.git/` outside the worktree (Kilroy issue #49). Since `f23e0dc`
-  the default invocation has no such flag, so this is a no-op there.
+  the default invocation has no such flag, so this is a no-op there; only
+  the app-server path (danger-full-access) and `--tmux` (workspace-write)
+  can write.
 - `engine/rust_sandbox_preflight.go` is a Rust build preflight check. It is
   not an isolation feature.
 - Agents can also run in tmux sessions (`agents/tmux_handler.go`). They still
@@ -117,7 +129,10 @@ Source: https://github.com/fabro-sh/fabro, commit `7fc0edb` (2026-10-03).
   Local errors on both. Only Daytona supports CIDR allow-lists. There is no
   domain allow-list in any provider.
 - Docker and Daytona are clone-based: Fabro clones the repo into the sandbox
-  (depth 100). Local runs in place, with "no filesystem or network
+  (depth 100), but only "when a run has a GitHub origin"
+  (`environments.mdx:273`). The `none` target gives an empty workspace;
+  only Local takes a `folder` target, and Docker/Daytona reject it. A
+  local-only or non-GitHub project would start empty or fail. Local runs in place, with "no filesystem or network
   isolation". The image must provide `/bin/bash`.
 - Agent backends are `api` (Fabro's own agent loop, tools run in the sandbox)
   and `acp` (an external ACP stdio agent).
@@ -207,7 +222,9 @@ https://code.claude.com/docs/en/devcontainer.
   The docs give two fixes: use `--dangerously-bypass-approvals-and-sandbox`
   and let Docker be the boundary, or use the reference dev container.
 - `--full-auto` is deprecated in favour of
-  `codex exec --sandbox workspace-write`.
+  `codex exec --sandbox workspace-write` (docs at rust-v0.160.0; the local
+  codex-cli 0.156.1 `exec --help` shows only `-s/--sandbox`, no
+  `--full-auto`).
 
 **Gemini CLI.** Source:
 https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/sandbox.md
@@ -283,8 +300,8 @@ badlogic/pi-mono), commit `b2b5c42`,
     microVMs).
   - Docker Desktop is not needed: `brew install docker/tap/sbx`. It needs a
     Docker account sign-in.
-  - Required macOS version: Arm's guide says 14 or later; other secondary
-    sources say 26 (unverified, conflicting).
+  - Required macOS version: Docker's docs name no minimum; Arm's guide
+    says 14 or later, the only source found. This host is macOS 26.
   - Agents: claude, codex, copilot, cursor, devin, docker-agent, droid,
     gemini, kiro, opencode and shell.
   - Workspace is a filesystem-passthrough mount at the same path, or "clone
@@ -338,8 +355,9 @@ badlogic/pi-mono), commit `b2b5c42`,
     is reachable that way, or needs `OLLAMA_HOST=0.0.0.0`, depends on the
     runtime (unverified per runtime).
   - Docker Sandboxes blocks private CIDRs by default according to secondary
-    sources (unverified). There is an open Ollama issue about sbx
-    integration (https://github.com/ollama/ollama/issues/18425, not read).
+    sources (unverified). Ollama issue #18425 (open) is a feature request
+    to launch Ollama's agent integrations inside sbx; it does not settle
+    reachability (https://github.com/ollama/ollama/issues/18425).
   - A network-blocked sandbox (Fabro `block`, Codex default) also blocks the
     model endpoint, unless the agent process sits outside the sandbox.
 
@@ -365,7 +383,7 @@ badlogic/pi-mono), commit `b2b5c42`,
 | Devcontainer (Claude/Codex reference) | Container plus egress firewall | Yes | Default-deny allowlist (`init-firewall.sh`) | Image build once; start ~seconds | Claude Code, Codex, others | code.claude.com/docs/en/devcontainer |
 | Apple `container` | VM per container | Yes, macOS 26+ | Per-container VM networking (details unverified) | Start ~seconds (unverified) | Any CLI in image | github.com/apple/container 1.5.0 |
 | Lima VM | Full VM | Yes (VZ) | Your own (VM-level) | VM boot; reusable | Claude Code, Codex, Gemini, OpenCode, Aider documented | lima-vm.io/docs/examples/ai |
-| Docker Sandboxes `sbx` | MicroVM per sandbox | Yes (macOS version unclear) | Domain allow/deny proxy; credential injection | Sandbox create per agent; private image cache | claude, codex, gemini, opencode, copilot, cursor, kiro, droid, … | docs.docker.com/ai/sandboxes |
+| Docker Sandboxes `sbx` | MicroVM per sandbox | Yes (no documented minimum; Arm guide: 14+) | Domain allow/deny proxy; credential injection | Sandbox create per agent; private image cache | claude, codex, gemini, opencode, copilot, cursor, kiro, droid, … | docs.docker.com/ai/sandboxes |
 | microsandbox | MicroVM | Yes | allowed hosts/ports | Sub-second boot (claimed) | Any (you install it); beta | superradcompany/microsandbox v0.7.6 |
 | container-use | Container per branch (tools only) | Yes | Container network | Dagger engine plus container per env | MCP clients (Claude Code, Cursor, Goose) | dagger/container-use |
 | VibeKit | Container | Yes | Unverified | Container per run | Claude Code, Codex, Gemini, OpenCode, Grok | superagent-ai/vibekit |
@@ -373,13 +391,34 @@ badlogic/pi-mono), commit `b2b5c42`,
 | gVisor / Kata | Container with user-space kernel / VM | No (Linux) | Container network | low / medium | Any (Gemini CLI has `runsc`) | google/gvisor, kata-containers |
 | Fabro `docker` provider | Container | Yes (needs a Docker daemon) | `allow_all` or `block` only | Clone repo (depth 100) plus container | Fabro API agent; ACP agents in image | fabro `environments.mdx` @7fc0edb |
 | Fabro `daytona` provider | Cloud VM | n/a (cloud) | allow/block/CIDR list | Snapshot build once | Fabro API agent (ACP not supported) | same |
-| Kilroy | Git worktree only, plus each CLI's flags | Yes | None of its own | Worktree create | claude (bypass), codex (no sandbox; workspace-write only on --tmux), gemini (yolo), opencode | kilroy @b55fb0f |
+| Kilroy | Git worktree only, plus each CLI's flags | Yes | None of its own | Worktree create | claude (bypass), codex (default likely read-only by Codex default, untested; app-server danger-full-access; --tmux workspace-write), gemini (yolo), opencode | kilroy @b55fb0f |
+
+### Fit for us
+
+The operator's setup: an Attractor driving the Claude Code and Codex CLIs on
+subscriptions, plus local Qwen, with an optional sandbox per workflow.
+Workable shapes:
+
+1. **`srt` wrapping the CLI subprocess.** Cheap, on the host, Seatbelt.
+   Unverified: whether a Seatbelt-wrapped `claude` can still read its
+   Keychain login, and which model/auth hosts the network allow-list needs.
+   Local Ollama on 127.0.0.1 needs allowing too.
+2. **A container running the CLI** with `CLAUDE_CODE_OAUTH_TOKEN` or a
+   copied `~/.codex/auth.json`. Docker is on this host. The token sits
+   inside the boundary and can be exfiltrated if egress is open; host
+   Ollama needs a non-loopback bind.
+3. **An `sbx` microVM.** Strongest isolation; tokens stay on the host via
+   the proxy. Local Ollama may be unreachable (private CIDRs blocked,
+   unverified). Not installed here.
+
+None of these has been tried. A short test on a scratch repo per shape would
+settle the unverified points.
 
 ### Risk note
 
 - **Escape risk.** Process-policy sandboxes share the host kernel and user.
   - They depend on Seatbelt profiles. `sandbox-exec` is marked deprecated by
-    Apple (unverified, not checked here). The `srt` README lists its own
+    Apple (`man sandbox-exec` on this host: "(DEPRECATED)"). The `srt` README lists its own
     bypasses: domain fronting, programs that ignore proxy env vars, broad
     write grants to `$PATH` or shell rc files, and Unix sockets such as
     `docker.sock`.
@@ -397,7 +436,10 @@ badlogic/pi-mono), commit `b2b5c42`,
     Sandboxes, Claude's `sandbox.credentials` masking, and microsandbox
     secrets.
   - A one-year subscription token is long-lived.
-  - Kilroy and Fabro both run agents with permission bypass. Without a real
+  - Kilroy runs Claude, Gemini and app-server Codex with permission bypass. Fabro's ACP client (Petri)
+    answers permission requests "always allow", or "once" with a
+    `pre_tool_use` hook (see acp.md); the bypass flags in
+    `permissions.mdx` describe the removed `cli` backend. Without a real
     sandbox, the host user's files and keys are reachable.
 - **Performance on macOS.** Bind mounts cross the VM boundary (virtiofs or
   similar). Heavy small-file I/O such as `node_modules`, `cargo` or `git
@@ -416,7 +458,10 @@ badlogic/pi-mono), commit `b2b5c42`,
 - How does a sandboxed agent reach a host-local model (Ollama or llama.cpp
   on the Mac)? This needs testing for each of Docker, `sbx` (private CIDRs
   blocked?) and Apple `container`.
-- What exact macOS version does Docker Sandboxes require (14 vs 26)? What
+- Can Fabro's Docker provider sandbox a repo with no GitHub origin?
+- What exact macOS version does Docker Sandboxes require? Its docs name no
+  minimum; Arm's guide says 14 or later. This host is macOS 26, so it does
+  not block us. What
   are its pricing and licence terms for personal use?
 - Can `srt` wrap codex, opencode, pi or qwen-code cleanly? Each needs its own
   config dirs and model endpoints allow-listed.
