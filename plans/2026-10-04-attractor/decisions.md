@@ -6,10 +6,10 @@ spec builds on the answers. Source files are in [research/](research/).
 | # | Question | Source | Answer |
 |---|---|---|---|
 | 1 | Qwen 3.8: local 27B (fits the M1 Max 64 GB), or hosted Qwen3.8? | models.md | open |
-| 2 | GLM: buy the Coding Plan (approved tools only: Claude Code, Pi, OpenCode, Codex, Goose, Crush), or use the QwenCloud Token Plan (any tool; Qwen, glm-5.2, deepseek-v4-pro)? | models.md | open |
-| 3 | DeepSeek: is pay-per-token acceptable (no coding plan)? | models.md | open |
-| 4 | Claude subscription through the ACP adapter (Agent SDK; terms restrict third-party claude.ai login), or only through the `claude` CLI? | acp.md, harnesses.md | open |
-| 5 | Is heavy parallel use of a personal Claude Pro/Max login acceptable, or do pipeline runs use an API key? | harnesses.md | open |
+| 2 | GLM: buy the Coding Plan (approved tools only: Claude Code, Pi, OpenCode, Codex, Goose, Crush), or use the QwenCloud Token Plan (any tool; Qwen, glm-5.2, deepseek-v4-pro)? | models.md | Neither plan: pay-per-token API (operator, 2026-10-04). |
+| 3 | DeepSeek: is pay-per-token acceptable (no coding plan)? | models.md | Yes, API tokens (operator, 2026-10-04). |
+| 4 | Claude subscription through the ACP adapter (Agent SDK; terms restrict third-party claude.ai login), or only through the `claude` CLI? | acp.md, harnesses.md | Pending a POC: Agent SDK on the subscription (Anthropic postponed the billing change on 2026-06-16) (operator, 2026-10-04). |
+| 5 | Is heavy parallel use of a personal Claude Pro/Max login acceptable, or do pipeline runs use an API key? | harnesses.md | Subscription. No Opus API-rate spend; Claude and Codex are the two that need their own harness (operator, 2026-10-04). |
 | 6 | Fabro: is its churn (nightly breakage, git-main deps) and single-company control acceptable? | impl-fabro.md | open |
 | 7 | Sandboxing: against mistakes (harness policy sandbox) or against hostile code (container or VM)? | sandboxes.md | open |
 | 8 | Is the Attractor the orchestrator, or does something like dsh or Goose orchestrate Claude Code and Codex? | harnesses.md | open |
