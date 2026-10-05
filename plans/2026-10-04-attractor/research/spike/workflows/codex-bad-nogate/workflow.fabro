@@ -1,0 +1,9 @@
+digraph CodexBad {
+    graph [goal="Spike: a Codex node with an invalid model (nogate)"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    write [label="Codex bad model", backend="acp",
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/codex-acp\",\"args\":[],\"env\":{\"NO_BROWSER\":\"1\",\"INITIAL_AGENT_MODE\":\"workspace-write\",\"CODEX_CONFIG\":\"{\\\"model\\\":\\\"no-such-model-xyz\\\"}\"}}",
+           prompt="Create a file named bad.txt containing: x. Then reply DONE."]
+    start -> write -> exit
+}

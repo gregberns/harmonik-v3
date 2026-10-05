@@ -64,7 +64,16 @@ only, cheap models, one short prompt per node.
      CLAUDE.md, skills, plugins, hooks and MCP servers. Codex nodes load
      `~/.codex` the same way. Hooks run real commands, so pipeline runs
      depend on the operator's personal setup.
-- **Cost:** about 8 tiny prompts in total. The Claude node reported a $0.026
+- **Failure detection differs by agent** (§4b, invalid model id):
+  - A failed Codex turn is recorded as success, even with
+    `goal_gate=true`. The error text becomes the node's output and the run
+    ends SUCCEEDED.
+  - A failed Claude turn is recorded as a failed node. The run ends
+    SUCCEEDED without a gate and FAILED with `goal_gate=true`.
+  - A driver can't trust run status for Codex nodes. It needs a downstream
+    check node with a goal gate that verifies the work.
+- **Cost:** about 8 tiny prompts in total, plus 4 failure runs that failed
+  before doing work. The Claude node reported a $0.026
   list-price estimate; on the subscription it isn't charged.
 
 ## Facts
@@ -359,6 +368,39 @@ digraph Pipeline {
   drops names ending in `_token`, `_api_key` and the like
   (fabro-process-backend.md).
 
+### 4b. Failure detection: invalid model id
+
+Captain's follow-up, the same day. The plan-reviewer had read in code that
+`codex-acp` reports a failed turn as `stopReason: "end_turn"` with error
+text (`CodexEventHandler.ts:974-979`, per the planner's node-backend
+section). Petri treats `end_turn` (and `refusal`) as a normal end
+(`petri:crates/attractor/steps/src/acp/mod.rs:739-740`).
+
+The test: four one-node workflows (`spike/workflows/{codex,claude}-bad-{nogate,gate}`):
+- Codex gets `CODEX_CONFIG={"model":"no-such-model-xyz"}`; Claude gets
+  `ANTHROPIC_MODEL=no-such-model-xyz`.
+- Each runs with and without `goal_gate=true` on the agent node.
+
+| Workflow | Run | Node status | Run status | Notes |
+|---|---|---|---|---|
+| codex-bad-nogate | `01M451GZXE7TTS3KY1KPQE8X2C` | ✓ success | SUCCEEDED | Output: "The 'no-such-model-xyz' model is not supported when using Codex with a ChatGPT account." |
+| codex-bad-gate | `01M451H3MNH5FAWG46FJ5TA3ES` | ✓ success | **SUCCEEDED** | `step.finished` outcome `status: success`, error text as `output.text`. No `bad.txt` written |
+| claude-bad-nogate | `01M451H6HMH28B3WSW2CAGW32R` | ✗ failed (`Error: ?`) | SUCCEEDED | Routing reached exit |
+| claude-bad-gate | `01M451H90X8V3FQGPM96NP2A7R` | ✗ failed | **FAILED** | "the agent answered `session/prompt` with an error: Internal error: There's an issue with the selected model (no-such-model-xyz)…" |
+
+- Confirmed: a failed Codex turn over `codex-acp` is a successful node to
+  Fabro, so `goal_gate` can't catch it. `claude-agent-acp` returns a
+  JSON-RPC error, which Petri turns into a failed node.
+- Mitigations:
+  - Follow each Codex node with a deterministic check node that has
+    `goal_gate=true` (tests, file exists, diff not empty).
+  - Use an `output_schema` contract. It's unsupported for ACP nodes "in
+    this release" (dot-language.mdx:257), so it isn't available today.
+  - Fix it upstream: in `codex-acp`, or in Petri by classifying error text.
+- Only the invalid-model failure was tested. Other Codex failures (rate
+  limit, tool error, refusal) are assumed to behave the same (unverified).
+- Evidence: `spike/evidence.txt` ("Failure tests").
+
 ### 5. Not run
 
 - **Qwen:** waiting for the endpoint. The likely config is a custom
@@ -395,6 +437,10 @@ unchanged.
 - acp.md (planner): codex-acp headless reuse of `~/.codex` works.
 - poc-claude-subscription.md (planner): ACP use is metered against the Max
   windows (`_claude/rateLimit`).
+- comparison.md, option A: a failed Codex node records success (§4b), so
+  Fabro run status is unreliable for Codex stages without a check node.
+- The planner's node-backend section: the code-read claim that
+  `end_turn` hides Codex failures is confirmed by a run.
 - driver-and-assembly.md:36-37 (planner): start, status and stop are
   confirmed over REST with a bearer token.
 

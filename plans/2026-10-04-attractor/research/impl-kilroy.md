@@ -25,7 +25,7 @@ Every provider has to be configured with `backend: cli` or `backend: api`:
 | Target | Supported? | How |
 |---|---|---|
 | Claude Code on a subscription | Yes | Default CLI path removes `ANTHROPIC_API_KEY` so `claude` uses its OAuth login. The `--tmux` path passes `--bare`, which needs an API key. |
-| Codex on a ChatGPT subscription | Partial | Login works: if `OPENAI_API_KEY` is unset, Kilroy copies `~/.codex/auth.json` into an isolated `CODEX_HOME`. But the default path is likely **read-only**: no `--sandbox`, no config.toml, and `codex exec` defaults to a read-only sandbox. The working routes are `--tmux` (workspace-write, needs an API key) or the `codex-app-server` provider (danger-full-access). Needs a test run. |
+| Codex on a ChatGPT subscription | Partial | Login works: if `OPENAI_API_KEY` is unset, Kilroy copies `~/.codex/auth.json` into an isolated `CODEX_HOME`. But the default path is likely **read-only**: no `--sandbox`, no config.toml, and `codex exec` defaults to a read-only sandbox. The working route is `--tmux` (workspace-write, needs an API key). The `codex-app-server` provider runs Codex as the model inside Kilroy's loop; Codex's built-in tools aren't disabled and would run with full access if used (unverified). Needs a test run. |
 | GLM | Yes on pay-as-you-go; Coding Plan route breaks Z.ai's terms | Built-in `zai` provider calls the Coding Plan endpoint `/api/coding/paas/v4`, but the plan is limited to listed tools and Kilroy is not one (models.md). Use `/api/paas/v4`. Also `cerebras`. API backend only, generic `openai` profile. |
 | DeepSeek | Partial | No built-in provider. Works as a custom OpenAI Chat Completions provider; the adapter parses DeepSeek's `reasoning_content`. |
 | Qwen served locally | Partial | Same custom-provider route (base URL plus a dummy API key environment variable). Not tested by the project. An Ollama backend exists only on an unmerged fork branch, unwired. |
@@ -179,9 +179,14 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
   - Spawns `codex app-server --listen stdio://` (internal/llm/providers/codexappserver/transport.go:22,33,605).
   - It uses Codex as a model behind Kilroy's own agent loop. Requests are serialized as a "stateless
     transcript" with tool-call markers (request_translator.go:672-697).
-  - Codex's built-in tool approvals are declined (transport.go:957-973).
   - The engine passes `approvalPolicy: never`, `sandbox: danger-full-access`
-    (agent_router.go:527-555).
+    (agent_router.go:527-555, opts at :536-551).
+  - Kilroy declines client-defined tool calls (`item/tool/call`) and
+    approval requests (transport.go:957-973), and drives tools through its
+    transcript (request_translator.go). Nothing in `codexappserver/*.go` or
+    agent_router.go disables Codex's built-in shell or apply_patch, so those
+    may still run unsandboxed in the worktree if the model uses them
+    (unverified by a run; plan-reviewer finding).
   - No API key is needed; it registers when `api_key_env` is empty
     (api_client_from_runtime.go:26-28).
   - It uses whatever login `codex` has. I did not test that this works with a ChatGPT login.
@@ -270,7 +275,7 @@ Uses the external agent's own loop. Invocation templates (builtin.go):
   - Claude runs with `--dangerously-skip-permissions`, gemini with `--yolo`.
   - Codex on the default path has no `--sandbox` flag (commit `f23e0dc`), so it falls back to codex
     defaults.
-  - codex-app-server uses `danger-full-access`.
+  - codex-app-server uses `danger-full-access`. Codex's built-in tools aren't disabled, so they would run with full access if used (unverified).
   - Docker is used only to host CXDB (scripts/start-cxdb.sh).
 - `rust_sandbox_preflight.go` is a toolchain-path preflight for Rust stages, not an isolation
   layer.

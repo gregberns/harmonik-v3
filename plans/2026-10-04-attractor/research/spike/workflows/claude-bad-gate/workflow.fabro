@@ -1,0 +1,9 @@
+digraph ClaudeBad {
+    graph [goal="Spike: a Claude node with an invalid model (gate)"]
+    start [shape=Mdiamond]
+    exit  [shape=Msquare]
+    write [label="Claude bad model", backend="acp", goal_gate=true,
+           acp.config="{\"command\":\"<adapters>/node_modules/.bin/claude-agent-acp\",\"args\":[],\"env\":{\"ANTHROPIC_MODEL\":\"no-such-model-xyz\"}}",
+           prompt="Use the Write tool to create bad.txt containing: x. Then reply DONE."]
+    start -> write -> exit
+}

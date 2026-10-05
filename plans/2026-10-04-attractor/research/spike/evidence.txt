@@ -6,3 +6,40 @@
 ## Codex node: auth status (events-codex.jsonl)
 "method":"_auth/status_update","params":{"authStatus":{"kind":"account","label":"ChatGPT Prolite","account":{"email":"<redacted>","plan":"prolite"}}}
 
+
+## Failure tests: invalid model id (run logs, 2026-10-04)
+### codex-bad-nogate
+Run: 01M451GZXE7TTS3KY1KPQE8X2C
+✓ start  293ms
+✓ Codex bad model  3s
+✓ exit  117ms
+Run:       01M451GZXE7TTS3KY1KPQE8X2C
+Status:    SUCCEEDED
+The 'no-such-model-xyz' model is not supported when using Codex with a ChatGPT account.
+### codex-bad-gate
+Run: 01M451H3MNH5FAWG46FJ5TA3ES
+✓ start  268ms
+✓ Codex bad model  2s
+✓ exit  73ms
+Run:       01M451H3MNH5FAWG46FJ5TA3ES
+Status:    SUCCEEDED
+The 'no-such-model-xyz' model is not supported when using Codex with a ChatGPT account.
+### claude-bad-nogate
+Run: 01M451H6HMH28B3WSW2CAGW32R
+✓ start  263ms
+✗ Claude bad model
+Error: ?
+✓ exit  84ms
+Run:       01M451H6HMH28B3WSW2CAGW32R
+Status:    SUCCEEDED
+### claude-bad-gate
+Run: 01M451H90X8V3FQGPM96NP2A7R
+✓ start  262ms
+✗ Claude bad model
+Error: ?
+Run:       01M451H90X8V3FQGPM96NP2A7R
+Status:    FAILED
+Failure:   the agent answered `session/prompt` with an error: Internal error: There's an issue with the selected model (no-such-model-xyz). It may not exist or you may not have access to it.
+
+### codex-bad-gate: Codex node step.finished (fabro events)
+"event":"step.finished","firing":2,"attempt":1,"outcome":{"status":"success","output":{"text":"Warning: Model metadata for `no-such-model-xyz` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.\n\nThe 'no-such-model-xyz'
