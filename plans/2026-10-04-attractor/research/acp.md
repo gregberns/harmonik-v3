@@ -26,6 +26,17 @@ Fabro today runs ACP through its engine Petri, which has its own small client.
 That client sets the model only through the command line, and its live tests
 pin a deprecated Claude adapter.
 
+**Can an Attractor swap harnesses per model through ACP?** Yes for launch and
+event shape. The model is chosen per command or env, or through the `model`
+config option where the agent exposes it. Harness-specific config,
+structured output and resume are not portable.
+
+**Subscriptions (Q3).** Claude via ACP can use a subscription technically
+(the adapter's "Claude Subscription" method), but Anthropic's Agent SDK
+policy restricts third parties offering claude.ai login (see Open
+questions). codex-acp supports ChatGPT login. Fabro/Petri cannot run any
+subscription login flow: it authenticates with API-key methods only.
+
 The other protocols called "ACP" (IBM/BeeAI Agent Communication Protocol,
 AGNTCY Agent Connect Protocol, OpenAI/Stripe Agentic Commerce Protocol) are
 unrelated to coding-agent launch, and the first two are archived.
@@ -68,6 +79,11 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
     terminal capability.
   - It then calls `session/new` with `mcpServers: []`. If the agent answers
     `auth_required` (-32000), it calls `authenticate` and retries.
+    `authenticate` picks only an API-key auth method
+    (`api_key_method(&self.auth_methods)`, `crates/attractor/steps/src/acp/mod.rs`
+    around 611-660 at `91d1b77`) and errors if the agent offers none. So a
+    subscription works only if the agent is already logged in and never
+    returns `auth_required`.
   - Turns use `session/prompt`, and `session/cancel` serves both steering
     and cancellation.
   - Permission requests are answered "always allow", or "once" when a
@@ -106,7 +122,7 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   `zed-industries/agent-client-protocol` redirects there. It has about 4.4k
   stars, it was last pushed 2026-10-04, and its head at checking was
   `cae7aca7`. The site is https://agentclientprotocol.com. The licence is
-  Apache-2.0 (per the repo LICENSE, unverified).
+  Apache-2.0 (gh api spdx_id).
 - **Transport.** From `docs/protocol/v1/transports.mdx`:
   - JSON-RPC 2.0, UTF-8, one message per line over stdio.
   - The client launches the agent as a subprocess.
@@ -206,7 +222,7 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
 - **Claude subscription login through the adapter.**
   - The adapter offers a "Claude Subscription" terminal auth method, which
     runs `claude auth login --claudeai`, and an "Anthropic Console" method
-    (`src/acp-agent.ts`, around line 2575).
+    (`src/acp-agent.ts`, about lines 2610-2629 at `a44c486`).
   - It has a `--hide-claude-auth` flag for integrations that must never bill
     a subscription (`src/hide-claude-auth.ts`).
   - So it uses the logged-in `claude` credentials when no API key outranks
@@ -242,7 +258,8 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   (`packages/opencode/src/acp/service.ts`). Models come from OpenCode's own
   provider config, including local OpenAI-compatible endpoints.
 - **Pi** (third-party adapter). https://github.com/svkozak/pi-acp, v0.0.34,
-  about 713 stars, described as "MVP-style".
+  about 713 stars, described as "MVP-style". Also in the ACP registry
+  (`pi-acp/agent.json` at registry `c1ff2a7`).
   - It spawns `pi --mode rpc` and bridges to ACP; it needs pi v0.81.0+.
   - It supports `session/load` through a session map, and pi's slash commands
     and skills.
@@ -318,7 +335,7 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   - **Hooks.** The orchestrator sees only the permission requests the agent
     chooses to send and the tool-call updates it chooses to report. Petri
     calls its ACP tool hooks "best effort"
-    (`acceptance/decisions/acp-tool-hooks-best-effort.toml`). Native harness
+    (`crates/fabro/acceptance/decisions/acp-tool-hooks-best-effort.toml`). Native harness
     hooks still run inside the agent.
   - **Plugins, skills and settings loading.** These depend on the adapter.
     The Claude adapter loads user, project and local settings and can take
@@ -338,8 +355,8 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   - **Adapter lag and churn.** Package renames: Claude twice, Codex once.
     Adapters wrap SDKs and CLIs that release weekly. Vendor `_meta`
     extensions. v2 on the way.
-  - **Extra runtime.** Node/npx is needed for most adapters; Fabro no longer
-    installs it.
+  - **Extra runtime.** Node/npx is needed for most adapters; Fabro does not
+    install ACP agents, Node.js, npm or npx (`agents.mdx:53`).
 
 ### Relevance to harmonik-v3
 
@@ -356,6 +373,10 @@ All facts were checked on 2026-10-04 unless a line says otherwise.
   checking under the SDK.
 
 ## Support table
+
+Note: through Fabro/Petri, no row's subscription login can be triggered;
+Petri authenticates with API keys only. A pre-logged-in agent may still
+work.
 
 | Agent | ACP support | How to launch | Subscription login works? | Source |
 |---|---|---|---|---|
