@@ -19,12 +19,42 @@ and enforces no process. Public commands: `session start|stop`,
 
 ## Tickets
 
-| # | Ticket | Blocked by |
-|---|---|---|
-| 01 | [Spike: hk3 agents in herdr can message each other](tickets/01-spike-herdr-messaging.md) | none |
-| 02 | [Router, shared library, keeper module and team names](tickets/02-router-naming.md) | none |
-| 03 | [Session module: start and stop agents in herdr](tickets/03-session-module-herdr.md) | 01, 02 |
-| 04 | [Crew module: add and stop members, with a roster](tickets/04-crew-add-roster-stop.md) | 03 |
-| 05 | [Crew skill and team messaging](tickets/05-crew-skill-messaging.md) | 04 (and spike messaging go) |
-| 06 | [Start a team from a crew definition, with its workflow](tickets/06-crew-start-definitions.md) | 04 |
-| 07 | [Project skills (project-management skill slot)](tickets/07-project-skills-slot.md) | 02 |
+All built, reviewed (two reviewers each), fixed and committed on 2026-10-02.
+
+| # | Ticket | Blocked by | Commit |
+|---|---|---|---|
+| 01 | [Spike: hk3 agents in herdr can message each other](tickets/01-spike-herdr-messaging.md) ([results](spike-results.md): go) | none | 62a2bfd |
+| 02 | [Router, shared library, keeper module and team names](tickets/02-router-naming.md) | none | 020eedd |
+| 03 | [Session module: start and stop agents in herdr](tickets/03-session-module-herdr.md) | 01, 02 | 8eed538 |
+| 04 | [Crew module: add and stop members, with a roster](tickets/04-crew-add-roster-stop.md) | 03 | 8374142 |
+| 05 | [Crew skill and team messaging](tickets/05-crew-skill-messaging.md) | 04 (and spike messaging go) | cae2179 |
+| 06 | [Start a team from a crew definition, with its workflow](tickets/06-crew-start-definitions.md) | 04 | e41345f |
+| 07 | [Project skills (project-management skill slot)](tickets/07-project-skills-slot.md) | 02 | d3240f4 |
+
+Live end-to-end check (scratch project, real Claude, 2026-10-02): passed.
+A 6-member team started from `feature` in one herdr workspace; members read
+the roster and messaged each other by label; a solo agent grew a team with
+`crew add`; `crew stop` cleaned up everything; no Claude session variables
+leaked into members; only `modules/session/herdr.sh` invokes herdr.
+
+## Pending operator decisions
+
+Agents added these beyond the tickets. Keep or cut each; the
+recommendation is in brackets.
+
+1. Start lock in the session module (prevents duplicate workspaces when
+   several starts race). [keep]
+2. compose-role keeps an unchanged role build in place, so running agents
+   keep their plugin folder. [keep]
+3. `hk3 session start --prompt <text>` for a new member's first message.
+   [keep]
+4. `crew stop` refuses to stop the caller and refuses names not on the
+   roster. [cut: rules the operator did not ask for]
+5. A taken explicit `--name` is refused rather than numbered. [keep]
+6. Crew definition: the lead may not have `name`/`count`, and the file must
+   be exactly one YAML document. [cut: a parse check is enough]
+7. `session tabs` lists only the project's own labels (prefix filter).
+   [keep]
+
+After these, run a simplification pass over `modules/crew/main` (526
+lines; the largest file) with the same review and fix steps.
