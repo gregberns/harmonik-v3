@@ -48,9 +48,13 @@ fetched 2026-10-04.
 - The product page calls Attractor StrongDM's "non-interactive coding agent"
   that "composes models, prompts, and tools into a graph-structured
   pipeline", deterministic, observable, resumable and composable. It lists
-  20+ community implementations (see implementations.md). It states no
+  community implementations in 18 table entries covering 19 repos
+  (attractor-php and attractor-tcl share a row) (see implementations.md). It states no
   license or model support. StrongDM's own implementation is not public
-  (unverified; none is linked).
+  (unverified; none is linked). The listed amolstrongdm/attractor (Python,
+  last push 2026-02-10) may be a StrongDM employee's account (unverified),
+  but it describes itself as "based on StrongDM's approach", so it is
+  likely not the internal implementation.
 
 ### 1. Attractor spec (the required part)
 
@@ -71,8 +75,8 @@ Section numbers refer to `attractor-spec.md`.
   stack.manager_loop (supervises a child pipeline: observe, steer, wait;
   §4.11). Custom handlers register by type name (§4.12).
 - **Execution engine** (§3): run lifecycle, core loop, deterministic edge
-  selection (condition match, then preferred label, then weight, then
-  lexical; §3.3), goal gates that block exit and jump to `retry_target`
+  selection (condition match, preferred label, suggested next IDs,
+  weight, lexical; §3.3), goal gates that block exit and jump to `retry_target`
   (§3.4), retries with backoff policy (§3.5-3.6), failure routing (§3.7),
   parallel branches (§3.8).
 - **CodergenBackend** (§4.5): `run(node, prompt, context) -> String | Outcome`.
@@ -113,10 +117,25 @@ Section numbers refer to `attractor-spec.md`.
   cross-feature parity matrix, and an integration smoke test with a real
   LLM (plan -> implement -> review -> done).
 
-What an implementation must provide: DOT parser and validator, the engine
-(edge selection, retries, goal gates, checkpoint/resume), the handler set,
-context and fidelity, the interviewer, condition language, stylesheet,
-events, and at least one CodergenBackend. HTTP server mode is "may".
+What an implementation must provide, split by the Definition of Done (§11):
+
+- **Required by the DoD** (§11.1-11.13): DOT parsing; validation and lint;
+  the engine loop with 5-step edge selection (condition, preferred label,
+  suggested IDs, weight, lexical; §11.3); goal gates; retries with backoff;
+  the start, exit, codergen, wait.human, conditional, parallel, fan-in and
+  tool handlers plus custom handler registration (§11.6); context,
+  checkpoint and resume (§11.7); the interviewer with AutoApprove, Console,
+  Callback and Queue implementations (§11.8); condition expressions; the
+  stylesheet; AST transforms (§11.11); the parity matrix and a smoke test
+  with a real LLM through a CodergenBackend.
+- **Described but not in the DoD**: the `stack.manager_loop` handler
+  (§4.11), context fidelity modes and thread reuse (§5.4), typed events
+  (§9.6), tool hooks (§9.7), pipeline composition (§9.4), and HTTP server
+  mode ("if implemented", §11.11).
+
+So a conformant core is the engine, eight handlers, the interviewer,
+conditions, stylesheet and one backend. Fidelity, events, the manager loop
+and HTTP mode are where implementations will differ.
 
 ### 2. Coding Agent Loop spec (optional)
 
@@ -148,11 +167,13 @@ events, and at least one CodergenBackend. HTTP server mode is "may".
   (§2.2).
 - `OpenAICompatibleAdapter` for vLLM, Ollama, Together, Groq and similar,
   using Chat Completions with a `base_url` (§7.10). This is the spec's path
-  to local Qwen, DeepSeek and GLM (both offer OpenAI-compatible APIs;
-  harness-researcher's models.md has details).
-- API keys only. Nothing in any of the three specs mentions subscription or
-  CLI-login auth. Claude/Codex subscriptions are only reachable by driving
-  the vendor CLIs as backends.
+  to local Qwen (served by vLLM, Ollama or llama.cpp), and to DeepSeek and
+  GLM, whose hosted APIs are OpenAI-compatible (unverified here; models.md
+  has details).
+- The specs cover API-key auth only; none of them mentions subscription or
+  CLI-login auth. Subscription routes (vendor CLIs, the Claude Agent SDK,
+  the Codex app-server/SDK, ACP adapters) are outside the spec; whether
+  each may use a subscription is covered in harnesses.md and acp.md.
 - References Vercel AI SDK, LiteLLM, and pi-ai (from Pi's pi-mono) as prior
   art (§1.3).
 
