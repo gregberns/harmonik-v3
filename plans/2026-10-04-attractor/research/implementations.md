@@ -12,8 +12,9 @@ https://factory.strongdm.ai/products/attractor.
 - Beyond Kilroy and Fabro, the live implementations that can drive CLI agents
   (Claude Code or Codex) or ACP agents are:
   - **allouis/attractor** (Go, ACP-first)
-  - **2389-research/tracker** (Go; native, `claude-code` and `acp` backends; has
-    moved from DOT to its own DSL, Dippin)
+  - **2389-research/tracker** (Go; native, `claude-code` and `acp` backends; is
+    moving from DOT to its own DSL, Dippin; DOT still loads with a deprecation
+    warning)
   - **citadelgrad/pascals-discrete-attractor** (Rust; Claude Code, Codex and
     Gemini CLIs)
   - **nnunley/strange-lettractor** (let-go/Clojure; all three specs; external
@@ -23,14 +24,22 @@ https://factory.strongdm.ai/products/attractor.
   - **lithoscomputer/petri** (Rust IR engine with Attractor and Fabro frontends,
     ACP)
   - **OilProducts/spark** (Rust; Codex CLI)
+- **OpenAI-compatible endpoints (local Qwen)**: documented for tracker
+  (`openai-compat` provider) and strange-lettractor (llama.cpp, Ollama,
+  vLLM). For allouis, fkyeah and dark-factory, local models are possible
+  only through an ACP or CLI agent that itself reaches the endpoint.
+  pascals' README names only OpenAI, Anthropic and Gemini. spark's README
+  lists provider keys (OpenAI, Anthropic, Gemini, OpenRouter) but no base
+  URL. All README-level, 2026-10-04; none confirmed in code.
 - Also live, but these run models through provider APIs or wrap an existing
   agent runtime instead of driving CLI agents: **microsoft/amplifier-bundle-attractor**
   with **amplifier-bundle-dot-runner** (Python, all three specs, Amplifier
   ecosystem) and the **stencila** `rust/attractor` crate (embedded in Stencila).
 - No longer getting commits, but notable: coreydaley/attractor (Kotlin/JVM,
-  CLI subprocesses plus OpenAI-compatible endpoints, last push June) and
+  CLI subprocesses plus OpenAI-compatible endpoints, last push June; archived
+  2026-07-13) and
   tgoodwin/tractor (Elixir, ACP bridges, last push May).
-- One entry on the product page has gone stale: "Forge" (smartcomputer-ai/forge) now
+- Two entries on the product page have gone stale: "Forge" (smartcomputer-ai/forge) now
   redirects to smartcomputer-ai/lightspeed, a Temporal agent harness. I found no
   Attractor code in its tree. "Dark Factory" (DeepCreative/dark-factory) returns
   404 (see open questions).
@@ -51,13 +60,13 @@ upstream spec commits. Contributor counts come from `/contributors`.
 
 | Repo | Lang | License | Last push | Stars/forks | Commits/contrib | Cov | Agent / LLM backends | Src | Note |
 |---|---|---|---|---|---|---|---|---|---|
-| [fabro-sh/fabro](https://github.com/fabro-sh/fabro) | Rust | MIT | 2026-10-03 | 1677/179 | 5416/23 | P(+A,L) | Claude Code, Codex, API providers | page | Known; not deep-dived |
+| [fabro-sh/fabro](https://github.com/fabro-sh/fabro) | Rust | MIT | 2026-10-03 | 1677/179 | 5416/23 | P(+A,L) | ACP agents (claude-code-acp tested), Codex via its own OAuth API loop (not the CLI), API providers; the cli backend was removed 2026-05-18 | page | See impl-fabro.md |
 | [allouis/attractor](https://github.com/allouis/attractor) | Go | Apache-2.0 | 2026-09-17 | 1/0 | 807/1 | P (+L via stylesheet) | **ACP** default (`claude-agent-acp`, `codex-acp`); native providers by model prefix; simulation | own | Nix install bundles the ACP adapters; web live view; releases up to v0.1.3 (2026-08-24) |
 | [2389-research/tracker](https://github.com/2389-research/tracker) | Go | MIT | 2026-10-04 | 21/5 | 1918/9 | P A L | `--backend native\|claude-code\|acp`; anthropic, openai, gemini, openai-compat | own | Started from an Attractor design (docs/plans/2026-03-04-attractor-design.md). Now uses its own `.dip` DSL ("Dippin"), not DOT. TUI, Slack bot, cost caps, Homebrew |
 | [citadelgrad/pascals-discrete-attractor](https://github.com/citadelgrad/pascals-discrete-attractor) | Rust | Apache-2.0 | 2026-10-04 | 7/2 | 218/2 | P A L | `codergen` nodes run the **Claude Code, Codex or Gemini CLI** (`llm_provider` is required on each); direct API handlers for OpenAI, Anthropic and Gemini | own | "PAS". Goal gates, budget guards, journal, monitor web UI |
 | [nnunley/strange-lettractor](https://github.com/nnunley/strange-lettractor) | let-go (Clojure) | Apache-2.0 | 2026-09-29 | 5/2 | 393/2 | P A L | native agent; external `claude` and `codex` agents (`--agent claude\|codex`); OpenAI, Anthropic, Gemini, openai-compat (llama.cpp, Ollama, vLLM) | own | Ships a conformance ledger against the upstream README. mparrett/strange-lettractor is a fork of it |
 | [TheFellow/fkyeah](https://github.com/TheFellow/fkyeah) | F# | MIT | 2026-09-13 | 18/1 | 120/1 | P A L | Anthropic, OpenAI, Gemini, OpenRouter; **ACP runtime** (stdio, WebSocket, HTTP+SSE) with presets such as `acp_preset="codex"` | page | About 1,020 tests, including a 208-test conformance suite; single binary |
-| [jleechanorg/dark-factory](https://github.com/jleechanorg/dark-factory) | Python per README (GitHub reports Rust) | none | 2026-10-04 | 8/2 | 916/3 | P (A,L?) | backends `ao` (default), `claude`, `codex`, `agy` (Antigravity), mock/echo | own | Sealed holdout scenarios; mixes backends per node. Possibly what the page lists as DeepCreative/dark-factory (unverified) |
+| [jleechanorg/dark-factory](https://github.com/jleechanorg/dark-factory) | Python per README (GitHub reports Rust) | none | 2026-10-04 | 8/2 | 916/3 | P (A,L?) | backends `ao` (default), `claude`, `codex`, `agy` (Antigravity), mock/echo | own | No LICENSE file (GitHub reports none) despite an MIT badge in README:4. Sealed holdout scenarios; mixes backends per node. Possibly what the page lists as DeepCreative/dark-factory (unverified) |
 | [lithoscomputer/petri](https://github.com/lithoscomputer/petri) | Rust | MIT | 2026-10-02 | 1/2 | 736/2 | P A(native) | agent step over **ACP** (live tests with `claude-code-acp` and `gemini --acp`) or the native "Pebble" agent; Host, Docker and Daytona sandboxes | own | Token-flow IR engine; `crates/attractor/frontend` lowers DOT; it also has a Fabro frontend |
 | [OilProducts/spark](https://github.com/OilProducts/spark) | Rust (+React) | none | 2026-10-04 | 0/0 | 1428/2 | P L | **Codex CLI** (sign-in from the UI); `unified-llm-adapter` crate | own | Workbench with `attractor-{core,dsl,execution,runtime,api}` crates and `spark-server` |
 | [microsoft/amplifier-bundle-attractor](https://github.com/microsoft/amplifier-bundle-attractor) + [amplifier-bundle-dot-runner](https://github.com/microsoft/amplifier-bundle-dot-runner) | Python | MIT | 2026-09-18 / 2026-10-03 | 8/5, 2/2 | 617/6, 601/6 | P A L | Anthropic, OpenAI and Gemini profiles; github-copilot and openai-chatgpt subscription workers; agent profiles mimic Claude Code and codex-rs tool sets (API, not the CLIs) | own | "Faithful" to a byte-pinned vendored spec; needs Microsoft Amplifier. robotdad/pipelines is a pipeline library for it |
@@ -66,18 +75,19 @@ upstream spec commits. Contributor counts come from `/contributors`.
 | [gutelius/attractor](https://github.com/gutelius/attractor) (fork) | Python | Apache-2.0 | 2026-09-27 | 0/0 | 62/5 (47 ahead) | ? | ? | own | Fork with `packages/` and tests; README unchanged from upstream; not inspected |
 | [jwest591/attractor](https://github.com/jwest591/attractor) (fork) | C++ | Apache-2.0 | 2026-08-05 | 0/0 | 208/5 (193 ahead) | ? | ? | own | CMake project in a fork; README unchanged; not inspected |
 | [bp-enterprise/attractor](https://github.com/bp-enterprise/attractor) | TypeScript | Apache-2.0 | 2026-08-16 | 0/0 | 11/1 | P A L | pluggable `CodergenBackend` | own | Few commits, large size (24 MB) |
+| [DrPep/attractor](https://github.com/DrPep/attractor) | Go | Apache-2.0 | 2026-08-02 | 1/0 | 33/1 | P? | ? | own | Minor; described as a "POC" |
 
 ### Older but substantial (no pushes since about June 2026)
 
 | Repo | Lang | License | Last push | Stars/forks | Commits/contrib | Cov | Backends | Src | Note |
 |---|---|---|---|---|---|---|---|---|---|
-| [danshapiro/kilroy](https://github.com/danshapiro/kilroy) | Go | MIT | 2026-04-27 | 221/52 | 944/13 | P A L | Claude Code, Codex, API, OpenAI-compatible | page | Known; not deep-dived. Quiet since April |
-| [coreydaley/attractor](https://github.com/coreydaley/attractor) | Kotlin (page says Java) | NOASSERTION | 2026-06-02 | 0/0 | 153/1 | P L | **CLI subprocess** (`claude`, `codex`, `gemini`, `copilot`); Anthropic, OpenAI, Gemini, OpenAI-compatible (Ollama, LM Studio, vLLM) | page | Server with REST API (37 endpoints), web dashboard, SQLite/MySQL/Postgres, Docker |
+| [danshapiro/kilroy](https://github.com/danshapiro/kilroy) | Go | MIT | 2026-04-27 | 221/52 | 944/13 | P A L | Claude Code, Codex, API, OpenAI-compatible | page | See impl-kilroy.md. Quiet since April; the only later work is the unmerged mattleaverton/kilroy@feat/v2-reframe (234 commits, May 2026); the most recently pushed fork is x85446/kilroy (2026-07-09) |
+| [coreydaley/attractor](https://github.com/coreydaley/attractor) (**archived** 2026-07-13) | Kotlin (page says Java) | NOASSERTION | 2026-06-02 | 0/0 | 153/1 | P L | **CLI subprocess** (`claude`, `codex`, `gemini`, `copilot`); Anthropic, OpenAI, Gemini, OpenAI-compatible (Ollama, LM Studio, vLLM) | page | Server with REST API (37 endpoints), web dashboard, SQLite/MySQL/Postgres, Docker |
 | [tgoodwin/tractor](https://github.com/tgoodwin/tractor) | Elixir | MIT | 2026-05-18 | 1/0 | 149/1 | P | **ACP** bridges by default (`@zed-industries/claude-code-acp`, `codex-acp`, `gemini --acp`) | own | Observer web UI; `docs/spec-coverage.md` maps the spec |
 | [Alezrik/attractor-phoenix](https://github.com/Alezrik/attractor-phoenix) | Elixir | none | 2026-05-16 | 0/0 | 285/1 | P L? | backend module; simulation by default | own | Phoenix web app |
 | [eykd/hermes-attractor](https://github.com/eykd/hermes-attractor) | Python | none | 2026-06-07 | 0/1 | 100+/? | P? | Hermes Agent plugin | own | Hexagonal design, 100% coverage target |
 | [samueljklee/attractor](https://github.com/samueljklee/attractor) | Python | none | 2026-03-05 | 27/4 | 146/2 | P A L | Anthropic, OpenAI, Gemini, OpenAI-compatible (Ollama, vLLM, LiteLLM); profiles in Claude Code and codex-rs style (API) | page | Claims 100% spec coverage; built with Amplifier |
-| [brynary/attractor](https://github.com/brynary/attractor) | TypeScript (Bun) | Apache-2.0 | 2026-03-18 | 24/7 | 64/4 | P A L | Anthropic, OpenAI, Gemini | own | README: "no longer maintained", evolved into Fabro |
+| [brynary/attractor](https://github.com/brynary/attractor) (**archived**) | TypeScript (Bun) | Apache-2.0 | 2026-03-18 | 24/7 | 64/4 | P A L | Anthropic, OpenAI, Gemini | own | README: "no longer maintained", evolved into Fabro |
 | [jhugman/attractor-pi-dev](https://github.com/jhugman/attractor-pi-dev) | TypeScript | Apache-2.0 | 2026-02-12 | 23/6 | 13/1 | P | pi-mono (pi-ai and pi-coding-agent) as the agent backend | page | npm `@jhugman/attractor-pi`; two spec features not yet wired |
 | [jmccarthy/attractor-c](https://github.com/jmccarthy/attractor-c) | C11 | Apache-2.0 | 2026-02-17 | 11/4 | 1 (squashed)/1 | P A L | Anthropic (and others?); dry-run | page | Bootstrapped with a Ralph loop |
 | [2389-research/mammoth](https://github.com/2389-research/mammoth) | Go | MIT | 2026-03-18 | 5/0 | 246/1 | P A L? | API providers | own | Graph editor, TUI, web; predecessor of tracker? |
@@ -97,7 +107,6 @@ upstream spec commits. Contributor counts come from `/contributors`.
 | [wcraigjones/attractor-factory](https://github.com/wcraigjones/attractor-factory) | TypeScript | Apache-2.0 | 2026-03-08 | 0/0 | 82/6 | ? | ? | own | |
 | [arikWaisman/klaus](https://github.com/arikWaisman/klaus) | TypeScript | none | 2026-04-14 | 0/0 | 8/1 | P A L | Claude Code skills for planning; API providers | own | |
 | [bkrabach/attractor](https://github.com/bkrabach/attractor) | Rust | MIT | 2026-03-20 | 1/1 | 29/1 | P | | own | Same author: coding-agent-loop (5 commits) and unified-llm-client-rust (33 commits) |
-| [DrPep/attractor](https://github.com/DrPep/attractor) | Go | Apache-2.0 | 2026-08-02 | 1/0 | 33/1 | P? | ? | own | Described as a "POC" |
 | [jawhnycooke/attractor](https://github.com/jawhnycooke/attractor) | Python | none | 2026-02-22 | 0/0 | 32/2 | P A L | Anthropic and others | own | |
 | [csdavenport6/attractor](https://github.com/csdavenport6/attractor) | TypeScript | Apache-2.0 | 2026-02-20 | 0/0 | 112/5 | P A L | ? | own | Copy of the spec repo plus an implementation |
 | Forks with code: [scarnecchia](https://github.com/scarnecchia/attractor) (TS, 131 ahead), [roowe](https://github.com/roowe/attractor) (Python, 3 packages, 9 ahead), [blakeai](https://github.com/blakeai/attractor) (Python, 19 ahead), [0x4D44](https://github.com/0x4D44/strongdm_attractor) (TS, 8 ahead), [mnesler](https://github.com/mnesler/attractor) (Go, 2 ahead / 88 files), [maxim-saplin](https://github.com/maxim-saplin/attractor) (Python, 2 ahead) | various | Apache-2.0 | 2026-02 to 2026-04 | 0 to 1 | | ? | ? | own | Last push February to April; not inspected |
@@ -143,7 +152,7 @@ All checked 2026-10-04 with `gh api repos/<r>` (pushed_at, stargazers_count),
 - **lithoscomputer/petri**: https://github.com/lithoscomputer/petri. Rust,
   generalizes Attractor into a token-flow IR. Its Attractor frontend lowers DOT,
   and a Fabro frontend wraps it (it tests against Fabro's scenario matrix).
-  Agents run over ACP or a native agent. Sandboxes: Docker and Daytona.
+  Agents run over ACP or a native agent. Sandboxes: Host, Docker and Daytona.
 - **OilProducts/spark**: https://github.com/OilProducts/spark. Rust workbench
   with `attractor-*` crates, a React UI and a server. Codex CLI is the
   agent backend. No license.
@@ -214,8 +223,10 @@ All checked 2026-10-04 with `gh api repos/<r>` (pushed_at, stargazers_count),
 
 - Is jleechanorg/dark-factory the page's "DeepCreative/dark-factory" (renamed or
   transferred)? Both are described as Python Dark Factory. Unverified.
-- 2389-research/tracker dropped DOT for Dippin. Does it still accept attractor
-  `.dot` files, or ship a converter? Not checked.
+- Answered (plan-reviewer, 2026-10-04): tracker still loads `.dot` with a
+  deprecation warning (cmd/tracker/loading.go:1,22-57, `emitDOTDeprecationWarning`).
+  Its `claude-code` and `acp` backends are in code
+  (pipeline/handlers/backend_acp.go, tracker_doctor_binaries.go).
 - How spec-conformant are the live ones? Only strange-lettractor, fkyeah,
   tractor and amplifier publish conformance or coverage docs. attractorbench
   (strongdm/attractorbench) could serve as a common yardstick.
