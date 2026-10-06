@@ -2,7 +2,7 @@
 
 A project can define its own roles; hk3's roles are defaults.
 
-Status: framing (2026-10-06).
+Status: requirements, spec and ticket written and approved (2026-10-06); two operator questions open (spec.md).
 
 ## Request (operator, 2026-10-06)
 
@@ -27,3 +27,9 @@ this needs: the project folder first, then hk3's, overriding by name
 
 Docs that name `config/roles`: docs/configuration.md, docs/architecture.md,
 docs/testing.md, setup/init-prompt.md.
+
+## Plan
+
+- [requirements.md](requirements.md): what the operator asked for
+- [spec.md](spec.md): what to build, tests, out of scope, operator questions
+- [tickets/01-project-roles.md](tickets/01-project-roles.md): the one ticket (blocked by none)
