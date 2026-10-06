@@ -72,3 +72,9 @@ Design review with the operator (2026-10-05):
 | 33 | A generic run-any-program handler? | design.md §1 | Hold off. Instead, find one handler that can run (almost) any model, e.g. the Pi coding agent, Fabro's generic agent loop, a fairly generic harness over ACP, or Omnigent. Research first. |
 | 34 | Which multi-model handler? | research/multi-model-handler.md | Pi (`pi --mode json`, pinned), as a fourth handler crate. |
 | 35 | Handler crate layout (interface crate, shared process runner, one crate per handler, registry)? | design.md §1 | Approved. |
+| 36 | Default worktree location? | design.md §3 (planner Q8) | Mirror Claude Code's `<project-root>/.claude/worktrees/<name>`: inside the project, under PAS's folder. Still configurable (project setting, CLI override). |
+| 37 | Uncommitted changes in the source checkout? | planner Q9 | Start anyway (branch from HEAD, or `--base`), with a warning recorded in the run. |
+| 38 | What proves a node completed? | planner Q10 | The git commits are the record. Don't rely on PAS's own logs (journal, checkpoint) for completion or resume. |
+| 39 | Cleanup? | planner Q12 | On success, remove the worktree and keep the branch; on failure, keep both for inspection or resume. Clean up after ourselves. A prune command later, or an agent cleans up. |
+| 40 | Commits per attempt, and hooks? | planner Q13 | One commit per attempt, so retries leave evidence. Engine commits use `--no-verify`: always commit; the graph's own steps enforce lint and tests, otherwise the system can get stuck. |
+| 41 | What happens to the work after a successful run? | operator | Not just left on the run branch, and not a blind merge. Leaning: merge back into the branch the run started from (a "target" branch). Details open. |
