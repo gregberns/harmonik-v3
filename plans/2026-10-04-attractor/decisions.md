@@ -78,3 +78,7 @@ Design review with the operator (2026-10-05):
 | 39 | Cleanup? | planner Q12 | On success, remove the worktree and keep the branch; on failure, keep both for inspection or resume. Clean up after ourselves. A prune command later, or an agent cleans up. |
 | 40 | Commits per attempt, and hooks? | planner Q13 | One commit per attempt, so retries leave evidence. Engine commits use `--no-verify`: always commit; the graph's own steps enforce lint and tests, otherwise the system can get stuck. |
 | 41 | What happens to the work after a successful run? | operator | Not just left on the run branch, and not a blind merge. Leaning: merge back into the branch the run started from (a "target" branch). Details open. |
+| 42 | Routing state on an engine-owned ref `refs/pas/runs/<run-id>`? | planner Q27 | Sounds reasonable. |
+| 43 | Resume from git? | planner Q27-28 | Defer. PAS's existing resume (checkpoint-based) stays as it is for now; git-derived resume, divergence handling and `--resume-from-record` come later. Attempt commits with trailers are written now. |
+| 44 | What happens to the work after a successful run (Q41)? | planner Q29 | Do nothing for now: no merge. The run reports its branch (and base, final commit, status) at the end, in its output and run folder; the agent or user merges, opens a PR, or uses an integration branch. Do less; don't build what git already does. Revisit later. |
+| 45 | Project name? | operator | May be renamed from "pas" later; not now. |
