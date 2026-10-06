@@ -93,3 +93,6 @@ Design review with the operator (2026-10-05):
 | 54 | Strip API keys from the agent environment? | planner Q6 | Yes, by default. A user must supply a token deliberately (in the profile) rather than one being picked up by accident. |
 | 55 | Retry prompt adds the failure class and reason? | planner Q24 | Fine, low priority (e.g. the agent should know tests failed). |
 | 56 | Scope check | operator | Scope is going a little far. Fix error reporting only where an error can't be understood; otherwise leave what's there. Idle timeout: don't worry about it; a user can have an agent read the logs. Refine later. |
+| 57 | Where does the dev crew run? | operator | Set hk3 up in `~/github/harmonik-attractor` and start the crew there, to reduce confusion. |
+| 58 | Git workflow for the build? | operator | Not straight to main. Each piece of work gets its own branch from main; the tester tests it; an integrator is the only one who merges branches to main, checking for issues and resolving all conflicts. |
+| 59 | Fork agent rules? | operator | Add AGENTS.md with the text and CLAUDE.md as a symlink. Include programming principles based on pure functional programming, strong testing principles, and Zero Framework Cognition (harmonik-v3 docs/concepts/zero-framework-cognition.md). |
