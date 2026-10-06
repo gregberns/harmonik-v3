@@ -34,16 +34,34 @@ A named entry in the agent config that says which mechanism, command,
 model, reasoning level and environment to use.
 _Avoid_: provider, backend
 
+**Agent handler**:
+The code, one crate each, that drives one kind of agent: `claude-p`,
+`codex-exec`, `gemini` and `pi` (the multi-model handler); later ACP,
+tmux and remote. What decisions Q14 and Q23 call a "handler".
+_Avoid_: bare "handler" (PAS's node handlers, such as the codergen handler,
+are a different thing), backend
+
 **Mechanism**:
-The way the engine drives an agent: `claude-p` and `codex-exec` (built),
-and later `acp`, `exec`, `tmux`, `remote`. What decisions Q14 and Q23 call
-a "handler".
-_Avoid_: handler (that is PAS's node handler), backend
+The name a profile uses to pick its agent handler, e.g. `mechanism =
+"claude-p"`.
 
 **Invocation**:
 One start of an agent process for one attempt, with its own id, transcript
 and stderr file.
-_Avoid_: call, session
+_Avoid_: call, session (that is the agent's own conversation)
+
+**Session id**:
+The id of the agent's own conversation: minted by the engine for a new
+session, recorded as the id the agent reports, and used to continue that
+conversation when the node runs again.
+
+**Thread key**:
+The name under which the engine remembers a session id within a run; by
+default the node id, or a shared `thread_id` set in the graph.
+
+**Fidelity**:
+Whether a node continues its thread's session (`full`, the default) or
+starts a new one (`fresh`).
 
 **Transcript**:
 The agent's stdout for one invocation, written line by line as it arrives.
@@ -58,9 +76,16 @@ result files.
 Why an attempt failed: reported, timeout, crash, no result or launch.
 A cancelled attempt is not a failure; it goes to the engine's stop path.
 
+**Interrupted attempt**:
+An attempt `pas` never finished because `pas` crashed or was killed
+mid-attempt. On resume its partial work is committed with `Pas-Status:
+interrupted` and the node runs again on top. A timed-out attempt is a
+failed attempt, not an interrupted one.
+
 **Run folder**:
-The directory that holds a run's journal, run metadata, transcripts and
-node results; the place other processes read.
+The directory that holds a run's journal, run metadata, transcripts,
+stderr and prompt files and `final.json`; the place other processes read. Observability: the engine
+doesn't read it to decide anything.
 _Avoid_: logs dir, run dir (in prose)
 
 **Journal**:
@@ -72,12 +97,17 @@ it.
 _Avoid_: workdir in prose (PAS's current term for a shared directory; kept
 as a field name for the directory an agent runs in)
 
-**Node commit**:
-The commit the engine makes in the worktree after each node attempt.
-_Avoid_: checkpoint commit
+**Attempt commit**:
+The commit the engine makes in the worktree after each attempt, whatever
+its outcome, with `Pas-*` trailers; the record of what each attempt did.
+_Avoid_: node commit, checkpoint commit
+
+**Base**:
+The ref a run's branch starts from (`--base`, default `HEAD`).
 
 **Checkpoint**:
-The engine's saved execution state (`checkpoint.json`) used to resume a run.
+The engine's saved execution state (`checkpoint.json`) used to resume a
+run; resume from git is deferred.
 
 **Digital twin**:
 A fake agent executable that speaks the same output format as a real agent
