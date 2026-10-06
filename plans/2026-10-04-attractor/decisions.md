@@ -88,3 +88,8 @@ Design review with the operator (2026-10-05):
 | 49 | Idle (no-output) timeout? | planner Q16 | Not now; add later if needed. |
 | 50 | A session that can't be continued? | planner Q21 | Fail (don't fall back to a new session). |
 | 51 | General rule for the remaining choices | operator | Keep what exists if it's good enough. Ask: can we generally get work done? Would re-running fix the error? Is the error clear enough for an agent or user to diagnose? Do less now; extend later. |
+| 52 | Pin Pi to an exact version? | planner Q26 | No. Use whatever `pi` is installed; no pinning, no per-upgrade smoke test. Pinning has gone badly before; if a Pi release breaks something, so be it. |
+| 53 | Test seams? | planner Q20 | Agreed as a start: `Agents::run` with the fake, and `pas run` end to end with the fake (shell-script fakes). |
+| 54 | Strip API keys from the agent environment? | planner Q6 | Yes, by default. A user must supply a token deliberately (in the profile) rather than one being picked up by accident. |
+| 55 | Retry prompt adds the failure class and reason? | planner Q24 | Fine, low priority (e.g. the agent should know tests failed). |
+| 56 | Scope check | operator | Scope is going a little far. Fix error reporting only where an error can't be understood; otherwise leave what's there. Idle timeout: don't worry about it; a user can have an agent read the logs. Refine later. |
