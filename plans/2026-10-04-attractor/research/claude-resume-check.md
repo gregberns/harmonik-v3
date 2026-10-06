@@ -18,3 +18,19 @@ Conclusions:
 - A missing session produces a result line with `is_error: true`, so the
   claude-p failure table reports it as `Failed(Reported)`, with the reason in
   `errors`; no fallback (Q50).
+
+## codex exec resume (2026-10-05)
+
+Codex CLI on the operator's ChatGPT login (no OPENAI_API_KEY), stdin
+`/dev/null`, scratch folder, `--json --skip-git-repo-check`.
+
+| Step | Command (abridged) | Result |
+|---|---|---|
+| New | `codex exec --json "Remember the word PELICAN..."` | `thread.started` with `thread_id` 01a10f9d-…; agent message "OK"; `turn.completed` |
+| Resume | `codex exec resume 01a10f9d-… --json --dangerously-bypass-approvals-and-sandbox "What word...?"` | `thread.started` with the SAME `thread_id`; agent message "PELICAN"; `turn.completed` |
+| Missing thread | `codex exec resume 00000000-… --json "hi"` | no JSON events; stderr "Error: thread/resume: thread/resume failed: no rollout found for thread id … (code -32600)"; exit 1 |
+
+Conclusions: `codex exec resume <thread_id>` continues the thread and keeps
+its id. A missing thread exits 1 with no result, which the codex-exec
+failure table reports as `Failed(Crash)` with the stderr line as the
+reason (the run stops, Q47); no fallback (Q50). `-m` was not exercised.
