@@ -296,8 +296,9 @@ question of how public the inside is:
 - `Continue(id)`: `id` is the agent session id recorded from an earlier
   invocation. The profile's resume form replaces its normal form:
   - `claude`: `resume_args = ["--resume", "{session_id}"]`, without
-    `--session-id`. `claude --help` says `--resume` reuses the original id
-    unless `--fork-session` is given; not verified by a run, and
+    `--session-id`. Verified on the operator's Max login
+    (research/claude-resume-check.md, Q62): `--session-id <uuid>` sets the
+    id, and `-p --resume <id>` keeps the same id and remembers the context.
     `--session-id` with `--resume` is untested, so they aren't combined.
   - `codex`: `codex exec resume <id> <prompt>` is a subcommand, so the
     profile has a whole `resume_command`. `exec resume --help` (0.156.1)
@@ -317,8 +318,10 @@ question of how public the inside is:
   `--no-session-persistence` (Claude) and `--ephemeral` (Codex), so session
   files stay under `~/.claude` and `~/.codex`. No setting.
 - **Resume failure (Q50):** if continuing fails because the session is
-  gone, the attempt fails; no fallback to a new session. The detail says
-  the session id wasn't found.
+  gone, the attempt fails; no fallback to a new session. For Claude this is
+  a result line with `is_error: true`, `subtype: error_during_execution`
+  and an `errors` array ("No conversation found with session ID"), so the
+  `claude-p` table reports `Failed(Reported)` with that reason (Q62).
 
 **Engine: which session a node uses (fidelity, spec §5.4).**
 - `fidelity=full` (the default, Q30, for profiles that can resume):

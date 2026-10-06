@@ -246,10 +246,10 @@ resume, the engine-owned run ref and history-rewrite detection; merging,
 ## Risks and Unknowns
 
 **Unknowns** (cheapest check first):
-- `claude -p --resume <id>` keeps the same session id and accepts the
-  profile's other flags (`--safe-mode` etc.): `claude --help` says so; not
-  run. Cheapest check: one manual Haiku run by the operator, two prompts.
-  Tests use the fake, so tickets don't depend on it.
+- ~~`claude -p --resume <id>` keeps the same session id~~ Resolved (Q62,
+  research/claude-resume-check.md): `--session-id` sets the id, `-p
+  --resume` keeps it and the context, and a missing session is an
+  `is_error` result (`error_during_execution`).
 - `codex exec resume` with `--json`, `-m` and the bypass flag works on the
   ChatGPT login: help text only. Same kind of manual check.
 - Pi's `settings.json` keys for its retry window (low-priority ticket):
@@ -280,11 +280,10 @@ checkpoint resume is good enough (Q43); shell fakes are portable enough
   commits, continued sessions, persisted session files, stripped keys.
 
 **Irreversible or outward-facing steps:** none in the tickets. Pushing the
-fork to GitHub (`gregberns/harmonik-attractor`) is outward-facing; the
-builder confirms with the operator before the first push.
+fork to GitHub is allowed at any time (Q61).
 
-**Resolve first:** the `claude -p --resume` check, because continued
-sessions (ticket 08) are the default for every Claude node.
+**Resolve first:** nothing outstanding; the `claude -p --resume` check is
+done (Q62). Next is the `codex exec resume` check, before ticket 08.
 
 ## Tickets
 
