@@ -23,5 +23,5 @@ pulls the topics together; the captain takes its options to the operator.
 | [spec-gaps-pas.md](spec-gaps-pas.md) | PAS against the Attractor spec: missing and divergent pieces, crash/timeout path (Q18, Q22) | researcher | done |
 | [kilroy-git.md](kilroy-git.md) | Kilroy's worktrees, run branches and per-node commits; PAS hook points (Q16, Q17) | researcher | done |
 | [test-and-output-pas.md](test-and-output-pas.md) | PAS: fake-agent testing (Q19) and run output/transcripts (Q20, Q22) | planner | done |
-| [multi-model-handler.md](multi-model-handler.md) | One handler for (almost) any model: Pi, OpenCode/Qwen Code/Goose over ACP, pebble, Omnigent; recommendation (Q33). Details in multi-model/ | researcher | in review |
+| [multi-model-handler.md](multi-model-handler.md) | One handler for (almost) any model: Pi, OpenCode/Qwen Code/Goose over ACP, pebble, Omnigent; recommendation (Q33). Details in multi-model/ | researcher | done |
 | [comparison.md](comparison.md) | Support matrix and options with trade-offs (Q7) | researcher | done |
