@@ -1,12 +1,12 @@
 # Attractor design: the PAS fork
 
-A plan, not code. It covers decisions Q12-51 for the operator's fork of PAS
+A plan, not code. It covers decisions Q12-56 for the operator's fork of PAS
 (`~/github/harmonik-attractor`, at `50945da`). Code changes come later, in
 that repo. Terms follow [CONTEXT.md](CONTEXT.md); module, interface, seam,
 adapter, depth, leverage and locality are used as in the codebase-design
 skill.
 
-Inputs: [decisions.md](decisions.md) Q12-51 and, in [research/](research/),
+Inputs: [decisions.md](decisions.md) Q12-56 and, in [research/](research/),
 [impl-harmonik-attractor.md](research/impl-harmonik-attractor.md),
 [spec-gaps-pas.md](research/spec-gaps-pas.md),
 [test-and-output-pas.md](research/test-and-output-pas.md) and
@@ -102,7 +102,7 @@ attractor-cli (pas) ──registers──▶ handler crates ──▶ attractor-
 | `attractor-handler-claude-p` | Claude `-p` stream-json: argv, parser, failure table, session id. Built new |
 | `attractor-handler-codex-exec` | Today's Codex command and parser (`codergen_provider.rs:406-421, 715-757`), moved |
 | `attractor-handler-gemini` | Today's Gemini command, `--help` format probe and parser (`codergen_provider.rs:270-335, 422-432`), moved |
-| `attractor-handler-pi` | Pi (`@earendil-works/pi-coding-agent`, pinned) in `--mode json`: the multi-model handler for DeepSeek, GLM, the hosted Qwen and any model Pi can reach (Q33, Q34). Built new |
+| `attractor-handler-pi` | Pi (`@earendil-works/pi-coding-agent`, whatever `pi` is installed, Q52) in `--mode json`: the multi-model handler for DeepSeek, GLM, the hosted Qwen and any model Pi can reach (Q33, Q34). Built new |
 
 `codergen_provider.rs`, `provider_stream.rs` and `process_group.rs` leave
 `attractor-pipeline`: the process parts into `attractor-agent-process`, the
@@ -205,12 +205,13 @@ From [research/multi-model-handler.md](research/multi-model-handler.md)
 - **Command:** `pi --mode json --model <provider/id> [--thinking <level>]
   --session-dir <dir> --session-id <id> <prompt>`, with an exact
   `provider/id` (`--model` also fuzzy-matches). Pi has no `--cwd`; it runs
-  in the process cwd (the worktree). The Pi version is pinned in the
-  profile's `command` (e.g. an installed `pi@1.0.3` path), because Pi
-  releases almost daily.
+  in the process cwd (the worktree). The profile runs whatever `pi` is
+  installed; no pinned version and no per-upgrade smoke test (Q52).
 - **Stdin `/dev/null`:** Pi reads stdin to EOF when it isn't a TTY.
 - **Per-invocation config dir:** the handler writes a fresh
-  `PI_CODING_AGENT_DIR` under the run folder with:
+  `PI_CODING_AGENT_DIR` under the run folder (never in the worktree;
+  removed when the invocation ends, since `models.json` holds an API key)
+  with:
   - `models.json`: the profile's provider, `baseUrl`, `api:
     openai-completions`, the model id and its limits (an unknown id would
     otherwise inherit the provider default's limits,
@@ -443,7 +444,7 @@ Handlers pass the prompt through unchanged.
   # Pi's models.json; models.json is never edited by hand.
   [profiles.deepseek]
   mechanism   = "pi"
-  command     = ["pi"]                 # pinned install, e.g. node_modules/.bin/pi from pi@1.0.3
+  command     = ["pi"]                 # whatever pi is installed (Q52)
   provider    = "deepseek"             # built into Pi
   model       = "deepseek-v4-pro"
   api_key_env = "DEEPSEEK_API_KEY"
@@ -664,10 +665,12 @@ section 7.
   or a spawn failure (`:142`) stops the run. That gives success and failure
   routes for commands.
 
-**Clearer errors (the one change to the `Err` path):** the run's error
-names the node, the attempt, the failure class, the handler's `detail`
-(exit code or signal, the last stderr lines) and the transcript and stderr
-paths, for example: `node 'build' attempt 2 failed: timeout after 600 s;
+**Clearer errors, only where today's error can't be understood (Q56):**
+today a timeout ends with `Command timed out after 120000ms`, naming
+neither the node nor where to look, and a crash's stderr now goes to a
+file instead of the message. So the run-ending error names the node, the
+attempt, the failure class, the handler's `detail` (exit code or signal,
+the last stderr lines) and the transcript and stderr paths, for example: `node 'build' attempt 2 failed: timeout after 600 s;
 transcript .pas/logs/.../transcripts/<inv>.jsonl; stderr .../<inv>.stderr.log`.
 It goes to stderr, `StageFailed`, `PipelineFailed` and `final.json`.
 
@@ -678,7 +681,9 @@ error; no rerouting):
   so a Fail can follow a `condition="outcome=success"` edge and the run
   carries on. Fix: return no edge, and in the engine's no-edge branch
   (`engine.rs:1150-1162`) stop the run when the node has outgoing edges but
-  none matched, whatever the outcome: `node 'X' outcome fail matched no
+  none matched, whatever the outcome (for a non-FAIL outcome this
+  deliberately diverges from spec lines 390-392, which end the run
+  normally; edges that match nothing are a graph mistake to report): `node 'X' outcome fail matched no
   outgoing edge (conditions: …)`. Today that branch errors only for Fail
   and otherwise ends the run as complete. About 0.5 day with tests.
 - **(b) Exhausted RETRY** (`engine.rs:589, 627-634`): when a handler returns
@@ -691,7 +696,8 @@ error; no rerouting):
 
 Agree with the expectation: (a) and (b) are small, both hide failures, and
 both should stop the run rather than reroute. Existing tests that assert the
-first-edge fallback change.
+first-edge fallback change; none asserts it directly, so any dependants
+show up when the suite runs.
 
 **Rate limits (Q48):** handled inside the handler, not the engine. A
 rate-limited attempt is retried by the handler for a short window, set per
@@ -829,6 +835,16 @@ migrating; nothing changes now:
 - `pas.toml`, `agents.toml` and the `pas-run.lock` file;
 - the `pas` binary name and the `attractor-*` crate names.
 
+## Priority (Q55, Q56)
+
+Q56: get work done; refine later. Everything above is needed for that
+except these, which are **low priority** and go last in the ticket order:
+- the rate-limit retry window inside `claude-p` (Q48); until it lands, a
+  rate limit is a reported error, as today;
+- the failure class and reason in a retry prompt (Q55);
+- the `<inv>.prompt.txt` file;
+- `docs/run-folder.md`.
+
 ## Rough effort
 
 | Piece | Days |
@@ -892,8 +908,12 @@ operator only needs to object.
     rest.
 25. **Handler registration:** all handlers always compiled in; no cargo
     features.
-26. **Pi:** pin one exact version, with a smoke test on upgrade; the API key
-    goes in the per-invocation `models.json` (0600), not on the command line.
+26. *Answered (Q52): no pinning; the API key goes in the per-invocation
+    `models.json` (0600).*
 
-**Still open:** question 6 (the API-key strip). Section 6's test seams follow the tdd rule of
+**Answered at sign-off:** 6 (Q54: strip API keys by default; a token is
+supplied in the profile on purpose), 20 (Q53: the two seams, shell-script
+fakes), 24 (Q55: fine, low priority). Q56 trimmed the scope (below).
+
+**Still open:** none. Section 6's test seams follow the tdd rule of
 agreeing seams first; the captain may confirm them with the operator.
