@@ -99,3 +99,5 @@ Design review with the operator (2026-10-05):
 | 60 | Beads issue tracking (upstream AGENTS.md)? | operator | Leave it out for now. |
 | 61 | Push to GitHub? | operator | Yes, any time, without asking. |
 | 62 | Verify `claude -p --resume`? | operator | Done by the captain: research/claude-resume-check.md. `--session-id` sets the id, `--resume` keeps it, and a missing session is an `is_error` result. |
+| 63 | One ticket at a time (shared checkout)? | operator | No: throughput matters. The builder works each ticket in its own git worktree, cleaned up after testing/merge. Tickets whose blockers are met run in parallel. The builder should also parallelise within a ticket by handing work to subagents, each in its own worktree. |
+| 64 | Who starts the dev crew? | operator | The operator starts it themselves, so it shows up correctly in herdr. |
