@@ -96,3 +96,6 @@ Design review with the operator (2026-10-05):
 | 57 | Where does the dev crew run? | operator | Set hk3 up in `~/github/harmonik-attractor` and start the crew there, to reduce confusion. |
 | 58 | Git workflow for the build? | operator | Not straight to main. Each piece of work gets its own branch from main; the tester tests it; an integrator is the only one who merges branches to main, checking for issues and resolving all conflicts. |
 | 59 | Fork agent rules? | operator | Add AGENTS.md with the text and CLAUDE.md as a symlink. Include programming principles based on pure functional programming, strong testing principles, and Zero Framework Cognition (harmonik-v3 docs/concepts/zero-framework-cognition.md). |
+| 60 | Beads issue tracking (upstream AGENTS.md)? | operator | Leave it out for now. |
+| 61 | Push to GitHub? | operator | Yes, any time, without asking. |
+| 62 | Verify `claude -p --resume`? | operator | Done by the captain: research/claude-resume-check.md. `--session-id` sets the id, `--resume` keeps it, and a missing session is an `is_error` result. |
