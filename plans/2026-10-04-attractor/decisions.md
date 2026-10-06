@@ -70,3 +70,5 @@ Design review with the operator (2026-10-05):
 | 31 | Handler structure? | design.md §1 | Each handler (`claude -p`, `codex-exec`, …) is separate code in its own crate, behind a public handler interface; expect about 6 over time. Not one crate with a private split. |
 | 32 | Gemini? | design.md §1 | Port it as its own handler, like Codex. |
 | 33 | A generic run-any-program handler? | design.md §1 | Hold off. Instead, find one handler that can run (almost) any model, e.g. the Pi coding agent, Fabro's generic agent loop, a fairly generic harness over ACP, or Omnigent. Research first. |
+| 34 | Which multi-model handler? | research/multi-model-handler.md | Pi (`pi --mode json`, pinned), as a fourth handler crate. |
+| 35 | Handler crate layout (interface crate, shared process runner, one crate per handler, registry)? | design.md §1 | Approved. |
