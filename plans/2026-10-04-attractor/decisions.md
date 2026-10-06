@@ -82,3 +82,9 @@ Design review with the operator (2026-10-05):
 | 43 | Resume from git? | planner Q27-28 | Defer. PAS's existing resume (checkpoint-based) stays as it is for now; git-derived resume, divergence handling and `--resume-from-record` come later. Attempt commits with trailers are written now. |
 | 44 | What happens to the work after a successful run (Q41)? | planner Q29 | Do nothing for now: no merge. The run reports its branch (and base, final commit, status) at the end, in its output and run folder; the agent or user merges, opens a PR, or uses an integration branch. Do less; don't build what git already does. Revisit later. |
 | 45 | Project name? | operator | May be renamed from "pas" later; not now. |
+| 46 | Write the run ref and state.json now? | planner Q27 | No, defer with git resume. Rely on today's resume. |
+| 47 | Failure routing (planner Q14)? | design.md §5 | Don't rework routing now, but never hide a failure. Agent step timeout or crash: stop the run and report the error (today's behaviour). Command steps (tests etc.): success and failure routes are enough for now. Keep whatever already works; extend later. |
+| 48 | Rate limits? | planner Q15 | Handled in the handler: retry for a short while (a couple of minutes), then fail. |
+| 49 | Idle (no-output) timeout? | planner Q16 | Not now; add later if needed. |
+| 50 | A session that can't be continued? | planner Q21 | Fail (don't fall back to a new session). |
+| 51 | General rule for the remaining choices | operator | Keep what exists if it's good enough. Ask: can we generally get work done? Would re-running fix the error? Is the error clear enough for an agent or user to diagnose? Do less now; extend later. |
