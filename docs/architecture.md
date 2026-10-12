@@ -11,7 +11,7 @@ command is `harmonik-v3`, normally called `hk3` through a symlink on PATH.
 | `lib/hk3.sh` | Shared library for the CLI and modules: settings loading, project resolution, naming. Nothing else. |
 | `modules/<name>/` | One module per concern. `main`, when present and executable, is its command entrypoint. |
 | `modules/keeper/` | Keeper: `plugin/` hands off and restarts a session at a token threshold; `defaults.sh` holds the `KEEPER_*` defaults. No commands. |
-| `modules/session/` | `hk3 session start/stop/tabs`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
+| `modules/session/` | `hk3 session start/stop/tabs/label-here`: agents in herdr. `herdr.sh` is the only file in hk3 that calls herdr. |
 | `modules/crew/` | `hk3 crew start/add/roster/stop`: teams, crew definitions and rosters, through `hk3 session`. |
 | `crews/`, `workflows/` | Example crew definition (`feature`) and workflow (`plan-build-review`); a project's `.harmonik-v3/crews/` and `workflows/` override them by name. |
 | `scripts/compose-role` | Merges YAML config into a role's `settings.json` and skills plugin (skills from the project's `.harmonik-v3/skills/`, then `skills/`). |
@@ -50,6 +50,12 @@ one-line first prompt (passed to claude after `--`); `hk3 session stop <label>` 
 prefix, for other modules to check which labels are taken. A listed label is
 a tab, not proof of a running agent. Stop refuses a label without the
 prefix, so it never touches the operator's own tabs.
+
+`hk3 session label-here <label> <workspace label>` names the herdr tab it
+runs in. The launcher runs it before claude whenever it runs inside a herdr
+pane (`HERDR_ENV=1`), so an agent started by hand in a tab shows its label.
+It renames the workspace only when that tab is the workspace's only one, and
+it talks to the pane's own herdr server, not `HK3_HERDR_SESSION`.
 
 - **Team = workspace, member = tab.** Every agent lives in one herdr session
   (`HK3_HERDR_SESSION`, default herdr's own `default` session). A team is a

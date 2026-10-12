@@ -18,6 +18,7 @@
 #   wait_output <label> <regex> <seconds> print the first output line matching
 #   close_tab <label>
 #   view_hint                             how the operator views the tabs
+#   label_here <label> <workspace label>  name the tab this process runs in
 #
 # Requires herdr and jq.
 
@@ -141,4 +142,19 @@ close_tab() {
 
 view_hint() {
   echo "herdr session attach $HK3_HERDR_SESSION"
+}
+
+# label_here <label> <workspace label>: name the tab this process runs in,
+# and its workspace too when that tab is the workspace's only one (a shared
+# workspace keeps its name). herdr sets HERDR_TAB_ID and HERDR_WORKSPACE_ID
+# in every pane; a plain herdr call there reaches the pane's own server,
+# whatever HK3_HERDR_SESSION says. Outside herdr it does nothing.
+label_here() {
+  [[ "${HERDR_ENV:-}" == 1 && -n "${HERDR_TAB_ID:-}" && -n "${HERDR_WORKSPACE_ID:-}" ]] || return 0
+  local out tabs
+  out="$(herdr tab rename "$HERDR_TAB_ID" "$1" 2>&1)" || { echo "hk3: herdr tab rename: $out" >&2; return 1; }
+  tabs="$(herdr tab list 2>/dev/null |
+    jq --arg w "$HERDR_WORKSPACE_ID" '[.result.tabs[] | select(.workspace_id == $w)] | length')" || return 1
+  [[ "$tabs" == 1 ]] || return 0
+  out="$(herdr workspace rename "$HERDR_WORKSPACE_ID" "$2" 2>&1)" || { echo "hk3: herdr workspace rename: $out" >&2; return 1; }
 }

@@ -105,6 +105,11 @@ Two things to know:
   and no agent in them, and `hk3 session start` refuses those labels. Clear
   one with `hk3 session stop <label>`.
 
+You can also open a tab in herdr yourself and run `hk3 new agent claude
+--name alpha` in it. hk3 names the tab `oc-alpha`, and the workspace too
+when that tab is its only one, so herdr shows the agent instead of the
+folder name.
+
 ## Teams
 
 `hk3 crew` starts and grows a team of agents in herdr and keeps a roster of

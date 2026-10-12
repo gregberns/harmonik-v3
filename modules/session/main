@@ -7,6 +7,7 @@
 #   hk3 session start [--team <team>] --name <name> [--role <role>] [--prompt <text>]
 #   hk3 session stop <label>
 #   hk3 session tabs
+#   hk3 session label-here <label> <workspace label>
 set -euo pipefail
 
 # shellcheck source=lib/hk3.sh
@@ -30,6 +31,10 @@ Commands:
   tabs
       Print the labels of the open tabs with the project prefix, one per
       line. A tab may have no agent (e.g. after a herdr server restart).
+  label-here <label> <workspace label>
+      Run inside a herdr pane: name its tab <label>, and its workspace
+      <workspace label> when the tab is the workspace's only one. hk3 new
+      agent runs this itself. Outside herdr it does nothing.
 
 All agents run in herdr session \$HK3_HERDR_SESSION (now $HK3_HERDR_SESSION).
 View them with: $(view_hint)
@@ -217,6 +222,7 @@ case "${1:-}" in
   start) shift; require_prefix session; cmd_start "$@" ;;
   stop) shift; require_prefix session; cmd_stop "$@" ;;
   tabs) shift; [[ $# -eq 0 ]] || die "usage: hk3 session tabs"; require_prefix session; cmd_tabs ;;
+  label-here) shift; [[ $# -eq 2 && -n "$1" && -n "$2" ]] || die "usage: hk3 session label-here <label> <workspace label>"; label_here "$1" "$2" ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 1 ;;
 esac

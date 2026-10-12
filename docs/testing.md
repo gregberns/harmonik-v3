@@ -179,6 +179,13 @@ without it 200000, never 999.
 - From a shell in a pane of `hk3test`,
   `HK3_HERDR_SESSION=hk3test hk3 session start --team alpha --name sib`
   adds tab `oc-alpha--sib` to workspace `oc-alpha`.
+- In a pane of a workspace made by hand, `hk3 new agent claude --name alpha`
+  names the tab and the workspace `oc-alpha`; in a second tab of it,
+  `--team alpha --name builder` names only the tab (`oc-alpha--builder`);
+  alone in a new workspace, `--team bravo --name tester` gives workspace
+  `oc-bravo`; in a workspace that already had a tab, `--name charlie`
+  leaves the workspace name. Outside herdr, `hk3 session label-here a b`
+  does nothing and exits 0.
 
 **Live.** Restart `hk3test` without the fake (and without `ZDOTDIR`), start
 one real agent with `hk3 session start --name live`, answer the trust

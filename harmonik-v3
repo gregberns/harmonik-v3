@@ -167,6 +167,14 @@ run_claude() {
   HARMONIK_AGENT="$(HK3_PROJECT_PREFIX="${HK3_PROJECT_PREFIX:-hk3}" agent_label "${HK3_AGENT_NAME:-unnamed}")"
   export HARMONIK_AGENT
 
+  # Started by hand in a herdr pane: show the agent's label in herdr instead
+  # of the folder name. hk3 session start has named the tab already.
+  if [[ "${HERDR_ENV:-}" == 1 && -n "$HK3_AGENT_ID" ]]; then
+    local ws_label="$HK3_AGENT_ID"
+    [[ -n "${HK3_TEAM:-}" ]] && ws_label="$(agent_label "$HK3_TEAM")"
+    "$ROOT/harmonik-v3" session label-here "$HK3_AGENT_ID" "$ws_label" || true
+  fi
+
   echo "hk3: project $PROJECT_DIR" >&2
   echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
   # hk3 session start waits for this line ("hk3: claude ...") to know the
