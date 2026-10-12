@@ -87,11 +87,12 @@ hk3 session stop oc-alpha--builder                  # Claude exits via /exit, th
 ```
 
 A team is a herdr workspace (`oc-alpha`) and each agent a tab in it. All
-agents share one herdr session, `hk3` (set `HK3_HERDR_SESSION` to change
-it). Watch and step in with:
+agents share one herdr session: herdr's `default` session, the one plain
+`herdr` opens (set `HK3_HERDR_SESSION` in `.harmonik-v3/config.env` to use
+another). Watch and step in with:
 
 ```sh
-herdr session attach hk3
+herdr
 ```
 
 Two things to know:

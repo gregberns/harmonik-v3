@@ -79,7 +79,7 @@ must pass both arguments and export both variables; `hk3 bogus` and
 ## Session module (herdr)
 
 Use a throwaway herdr session, `HK3_HERDR_SESSION=hk3test`, never the
-operator's `hk3`, and a scratch repo whose `.harmonik-v3/config.env` sets
+operator's `default`, and a scratch repo whose `.harmonik-v3/config.env` sets
 `HK3_PROJECT_PREFIX=oc`. Only `modules/session/herdr.sh` may run `herdr`;
 check with `grep -rnw herdr modules scripts lib harmonik-v3 | grep -v '^modules/session/herdr.sh:'`:
 every line it prints must be a comment or message text, never a command.

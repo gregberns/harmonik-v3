@@ -36,8 +36,9 @@ View them with: $(view_hint)
 EOF
 }
 
-# herdr session that holds every agent.
-: "${HK3_HERDR_SESSION:=hk3}"
+# herdr session that holds every agent: herdr's own default session, the one
+# plain `herdr` attaches to.
+: "${HK3_HERDR_SESSION:=default}"
 export HK3_HERDR_SESSION
 
 # Seconds stop waits for the tab to close after /exit before an extra Enter

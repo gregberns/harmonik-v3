@@ -52,9 +52,9 @@ a tab, not proof of a running agent. Stop refuses a label without the
 prefix, so it never touches the operator's own tabs.
 
 - **Team = workspace, member = tab.** Every agent lives in one herdr session
-  (`HK3_HERDR_SESSION`, default `hk3`). A team is a workspace labelled with
-  the team label (`oc-alpha`); each agent is a tab labelled with its own
-  label (`oc-alpha--builder`). A solo agent's workspace has its own label,
+  (`HK3_HERDR_SESSION`, default herdr's own `default` session). A team is a
+  workspace labelled with the team label (`oc-alpha`); each agent is a tab
+  labelled with its own label (`oc-alpha--builder`). A solo agent's workspace has its own label,
   which is also the team label if it grows a team. The first agent in a new
   workspace takes its root tab, so there is no stray empty tab. The project
   prefix is required so labels from different projects never collide.
