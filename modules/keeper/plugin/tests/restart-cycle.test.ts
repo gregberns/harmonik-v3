@@ -8,15 +8,17 @@ function harness(options: any = {}) {
   register((name: string, callback: any) => { hooks[name] = callback; }, {});
   const sentinel = { additionalContext: ["other hook"], text: "native answer", usage: { tokens: 7 }, custom: true };
   let clearing = false;
+  let tokens = options.tokens ?? 250000;
+  let compactFailures = options.compactFailures ?? (options.failure ? Infinity : 0);
   let finishSessionChain: (() => void) | undefined;
   const $ = {
     env: { get: async (name: string) => ({ KEEPER_ENABLED: "1", ...options.env })[name] },
     ui: { log: (line: string) => logs.push(line) },
     session: {
-      usage: async () => ({ context: { tokens: options.tokens ?? 250000 } }),
+      usage: async () => ({ context: { tokens } }),
       compact: async (args: any) => {
         calls.push(["compact", args]);
-        if (options.failure) throw new Error("compact failed");
+        if (compactFailures-- > 0) throw new Error("a turn is in flight");
         return options.skip ? { skip: "veto" } : { tokensBefore: 250000, tokensAfter: 4000 };
       },
     },
@@ -48,7 +50,8 @@ function harness(options: any = {}) {
     });
   }
   const finish = (event: any = {}) => fire("turn.complete", { reason: "answer", answer: CONFIG.handoffMarker, ...event });
-  return { fire, finish, calls, logs, sentinel, releaseSessionChain: () => finishSessionChain?.() };
+  const setTokens = (n: number) => { tokens = n; };
+  return { fire, finish, calls, logs, sentinel, setTokens, releaseSessionChain: () => finishSessionChain?.() };
 }
 
 test("registered hooks preserve downstream results and compact then start once", async () => {
@@ -89,14 +92,30 @@ test("subagent hooks never consume the main cycle", async () => {
   expect(h.calls.length).toBe(2);
 });
 
-test("abort, refusal, error, or missing final marker consumes cycle without starting", async () => {
+test("re-arms after a completed cycle only once usage falls below the threshold", async () => {
+  const h = harness();
+  await h.fire("classic.PostToolUse");
+  await h.finish();
+  expect(h.calls.length).toBe(2);
+  // Still over the threshold after compaction (a tiny threshold): no loop.
+  expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+  h.setTokens(4000);
+  expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+  h.setTokens(260000);
+  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
+  await h.finish();
+  expect(h.calls).toEqual([["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }],
+    ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+});
+
+test("abort, refusal, error, or missing final marker never starts, and asks again", async () => {
   for (const event of [{ reason: "aborted" }, { reason: "refusal" }, { reason: "error" }, { answer: "HANDOFF_READY\nstill working" }]) {
     const h = harness();
     await h.fire("classic.PostToolUse");
     await h.finish(event);
     await h.finish();
     expect(h.calls).toEqual([]);
-    expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+    expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
   }
   expect(findMarkerLine('Quoted "HANDOFF_READY"', "HANDOFF_READY")).toBe(false);
   expect(findMarkerLine("Done\nHANDOFF_READY\n\n", "HANDOFF_READY")).toBe(true);
@@ -109,6 +128,31 @@ test("failed or vetoed compaction never starts another turn", async () => {
     await h.finish();
     expect(h.calls.length).toBe(1);
   }
+});
+
+test("compaction refused by a queued turn is retried after a fresh handoff", async () => {
+  const h = harness({ compactFailures: 1 });
+  await h.fire("classic.PostToolUse");
+  await h.finish();
+  expect(h.calls).toEqual([["compact", undefined]]);
+  // The queued turn's next tool call asks for a fresh handoff.
+  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
+  await h.finish();
+  expect(h.calls).toEqual([["compact", undefined], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+});
+
+test("stops asking after maxFailedAttempts failures until usage falls below the threshold", async () => {
+  const h = harness({ failure: true });
+  for (let i = 0; i < CONFIG.maxFailedAttempts; i++) {
+    expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
+    await h.finish();
+  }
+  expect(h.calls.length).toBe(CONFIG.maxFailedAttempts);
+  expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+  h.setTokens(1000);
+  await h.fire("classic.PostToolUse");
+  h.setTokens(250000);
+  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
 });
 
 test("clear confirms inside SessionStart but starts only after clear returns", async () => {

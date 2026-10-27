@@ -63,6 +63,13 @@ export const CONFIG = {
   // unconfirmed, not treated as success. Override with
   // KEEPER_RESTART_CLEAR_MODE=1.
   clearMode: false,
+
+  // Failed cycles in a row (no marker, aborted turn, compaction refused or
+  // vetoed, clear unconfirmed) before keeper stops asking. It asks again
+  // only once usage has fallen below the threshold; Claude's own
+  // auto-compact (CLAUDE_CODE_AUTO_COMPACT_WINDOW, set by hk3) is the
+  // backstop meanwhile.
+  maxFailedAttempts: 3,
 };
 
 // ---------------------------------------------------------------------------
@@ -107,13 +114,19 @@ export function findMarkerLine(text, marker) {
 
 // ---------------------------------------------------------------------------
 // Per-load state and config. createState() gives register() (and each test)
-// a fresh, independent cycle: one automatic cycle per load, never shared
-// across plugin loads or across tests.
+// fresh state, never shared across plugin loads or across tests.
+//
+// Re-arming: after a completed cycle keeper waits until observed usage is
+// below the threshold before it can act again, so a threshold under the
+// post-compaction baseline cannot loop. After a failed cycle it asks again
+// at the next tool boundary, up to maxFailedAttempts in a row; then it too
+// waits for usage to fall below the threshold.
 // ---------------------------------------------------------------------------
 
 export function createState() {
   return {
-    cycleUsed: false, // one-shot guard: only one automatic cycle per load
+    armed: true, // may request a handoff at the next tool boundary over the threshold
+    failedAttempts: 0, // failed cycles in a row; reset by a completed cycle or re-arm
     awaitingHandoff: false, // threshold crossed, waiting for the marked answer
     pendingClearConfirm: false, // clear mode: waiting for SessionStart source=clear
     clearConfirmed: false,
@@ -160,6 +173,26 @@ function log($, message) {
   $.ui.log(`[hk3-keeper] ${message}`);
 }
 
+// cycleDone: compaction (or a confirmed clear) succeeded. Disarm until
+// usage is seen below the threshold.
+function cycleDone(state) {
+  state.failedAttempts = 0;
+  state.armed = false;
+}
+
+// cycleFailed: the cycle ended without a reset. Ask again at the next tool
+// boundary unless it has failed maxFailedAttempts times in a row.
+function cycleFailed($, cfg, state) {
+  state.failedAttempts += 1;
+  if (state.failedAttempts < cfg.maxFailedAttempts) {
+    state.armed = true;
+    log($, `cycle failed (attempt ${state.failedAttempts} of ${cfg.maxFailedAttempts}); will ask again at the next tool call`);
+  } else {
+    state.armed = false;
+    log($, `cycle failed ${state.failedAttempts} times in a row; not asking again until usage falls below the threshold`);
+  }
+}
+
 async function submitStartup($, cfg) {
   try {
     if (cfg.startupKind === "command") {
@@ -182,7 +215,7 @@ async function submitStartup($, cfg) {
 // ---------------------------------------------------------------------------
 export async function handlePostToolUse($, e, state) {
   if (isSubagentEvent(e)) return {};
-  if (state.cycleUsed) return {};
+  if (state.awaitingHandoff) return {};
 
   const cfg = await resolveConfig($, state);
   if (!cfg.enabled) return {};
@@ -196,11 +229,19 @@ export async function handlePostToolUse($, e, state) {
   const tokens = (usage && usage.context && usage.context.tokens) || 0;
   log($, `usage observed: ${tokens} tokens (threshold ${cfg.restartAtTokens})`);
 
-  if (tokens < cfg.restartAtTokens) return {};
-  if (state.cycleUsed) return {}; // another concurrent tool handler may have acted
+  if (tokens < cfg.restartAtTokens) {
+    if (!state.armed) {
+      state.armed = true;
+      state.failedAttempts = 0;
+      log($, `usage below the threshold; re-armed`);
+    }
+    return {};
+  }
+  // Another concurrent tool handler may have acted while usage was read.
+  if (!state.armed || state.awaitingHandoff) return {};
 
   state.awaitingHandoff = true;
-  state.cycleUsed = true; // one cycle per load, from the moment we act
+  state.armed = false;
   log($, `threshold reached at ${tokens} tokens; requesting handoff`);
   return { additionalContext: [cfg.handoffPrompt +
     "\nEnd your final answer for this turn with a line containing exactly: " + cfg.handoffMarker] };
@@ -238,8 +279,9 @@ export async function handleTurnComplete($, e, state) {
     // error ended this turn instead of a normal answer: preserve the
     // operator's abort/error behavior by stopping the experiment here
     // rather than guessing at readiness. No compaction, no startup.
-    log($, `turn ended with reason="${e.reason}" instead of a normal answer; treating the handoff as failed, stopping the cycle`);
+    log($, `turn ended with reason="${e.reason}" instead of a normal answer; treating the handoff as failed`);
     state.awaitingHandoff = false;
+    cycleFailed($, cfg, state);
     return passthrough;
   }
 
@@ -249,8 +291,9 @@ export async function handleTurnComplete($, e, state) {
     // A completed turn that simply didn't finish with the marker (an
     // incomplete or declined handoff): stop the experiment here rather than
     // guess. No compaction, no startup.
-    log($, "turn completed without the handoff marker; treating handoff as failed, stopping the cycle");
+    log($, "turn completed without the handoff marker; treating handoff as failed");
     state.awaitingHandoff = false;
+    cycleFailed($, cfg, state);
     return passthrough;
   }
 
@@ -265,10 +308,16 @@ export async function handleTurnComplete($, e, state) {
       await $.command.run({ command: "clear" });
       // SessionStart runs inside command.run(clear). Starting a new prompt
       // there deadlocks; wait until clear has returned before submitting.
-      if (state.clearConfirmed) await submitStartup($, cfg);
-      else log($, "clear unconfirmed; not submitting startup");
+      if (state.clearConfirmed) {
+        cycleDone(state);
+        await submitStartup($, cfg);
+      } else {
+        log($, "clear unconfirmed; not submitting startup");
+        cycleFailed($, cfg, state);
+      }
     } catch (err) {
       log($, `clear command invocation failed: ${err && err.message ? err.message : err}`);
+      cycleFailed($, cfg, state);
     } finally {
       state.pendingClearConfirm = false;
       state.clearConfirmed = false;
@@ -281,18 +330,23 @@ export async function handleTurnComplete($, e, state) {
     const args = cfg.compactInstructions ? { instructions: cfg.compactInstructions } : undefined;
     result = await $.session.compact(args);
   } catch (err) {
+    // E.g. "a turn is in flight": a queued message (often a teammate's)
+    // started the next turn as soon as the handoff turn ended.
     log($, `compaction failed: ${err && err.message ? err.message : err}; leaving the conversation as-is`);
+    cycleFailed($, cfg, state);
     return passthrough;
   }
 
   if (result && typeof result === "object" && "skip" in result) {
     log($, `compaction skipped: ${result.skip}; not submitting startup`);
+    cycleFailed($, cfg, state);
     return passthrough;
   }
 
   const tokensBefore = result && result.tokensBefore;
   const tokensAfter = result && result.tokensAfter;
   log($, `compaction completed (tokensBefore=${tokensBefore ?? "?"} tokensAfter=${tokensAfter ?? "?"})`);
+  cycleDone(state);
   await submitStartup($, cfg);
   return passthrough;
 }

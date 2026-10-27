@@ -144,6 +144,7 @@ in the project's `.claude/settings.local.json`, then its
 | `KEEPER_HANDOFF_PROMPT` | plugin `CONFIG` | What the agent is told to do at the threshold. |
 | `KEEPER_STARTUP_KIND` | `prompt` | `prompt` (plain text) or `command` (slash command). |
 | `KEEPER_STARTUP_PROMPT` | plugin `CONFIG` | Text or `/command args` sent after the restart. |
+| `KEEPER_AUTO_COMPACT_WINDOW` | restart threshold + 100000, at most 1000000 | Exported as Claude's `CLAUDE_CODE_AUTO_COMPACT_WINDOW`: a backstop if keeper's cycle fails or never runs. `0` leaves Claude's own setting alone. Otherwise 100000 to 1000000. |
 
 In the two prompts, `{name}` is replaced by the agent name, without the
 project prefix (`alpha`; for a team member `alpha--builder`), and `{role}` by
@@ -162,6 +163,19 @@ KEEPER_HANDOFF_PROMPT="Your context is nearly full. Run the session-handoff skil
 KEEPER_STARTUP_KIND=command
 KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
 ```
+
+Keeper re-arms after each completed cycle once usage is back below the
+threshold, and retries a failed cycle at the next tool call, up to three
+times in a row (see the keeper README).
+
+`KEEPER_AUTO_COMPACT_WINDOW` sets the token count at which Claude compacts
+on its own, with no handoff and no startup prompt. Keep it far enough above
+`KEEPER_RESTART_TOKEN_COUNT` that a handoff turn finishes first: Claude
+compacts somewhat before usage reaches the window. The environment
+variable takes priority over Claude's `autoCompactWindow` setting and
+`/autocompact`. hk3 computes the default at launch and does not export it,
+so `hk3 config` lists the setting only when it is set; the launch summary
+line shows the value used.
 
 ### Compaction or clear
 

@@ -41,8 +41,27 @@ next step without another keystroke.
 
 500 tokens is deliberately below most system/tool baselines, so the first
 tool call should trigger it. Omit the token override for the **200,000-token**
-default. The plugin performs **one cycle per load**, including failed cycles;
-relaunch to repeat. This prevents a tiny test threshold causing a loop.
+default.
+
+## Repeated cycles
+
+After a completed cycle keeper waits until it observes usage below the
+threshold before it can act again, so a threshold below the
+post-compaction baseline (such as 500) gives one cycle, not a loop. A
+failed cycle (no marker, an aborted turn, compaction refused or vetoed, an
+unconfirmed clear) asks for a fresh handoff at the next tool call, up to
+`maxFailedAttempts` (3) in a row; after that keeper also waits for usage to
+fall below the threshold.
+
+The common failure is a queued message: in a team, a teammate's message
+arrives during the handoff turn, Claude starts that turn as soon as the
+handoff turn ends, and `session.compact` refuses with "a turn is in
+flight". The retry asks again during that next turn.
+
+Claude's own auto-compact is the backstop when keeper never succeeds: hk3
+exports `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (see `KEEPER_AUTO_COMPACT_WINDOW`
+in docs/configuration.md). It compacts without a handoff or a startup
+prompt.
 
 ## Configuration
 
@@ -58,6 +77,7 @@ behavior defaults:
 | `startupKind` | `"prompt"` or `"command"`. |
 | `startupPrompt` | Startup text, or slash command such as `/session-resume task one`. Commands are Claude commands, not shell commands. |
 | `clearMode` | Use `/clear` instead of built-in compaction, default false. |
+| `maxFailedAttempts` | Failed cycles in a row before keeper waits for usage to fall below the threshold, default 3. |
 
 `KEEPER_HANDOFF_PROMPT`, `KEEPER_STARTUP_KIND` and `KEEPER_STARTUP_PROMPT`
 override the prompts per project; `{name}` and `{role}` are filled from
@@ -99,7 +119,8 @@ A third live test changed only the startup configuration to a local slash
 command with an argument; Claude expanded the command and wrote the expected
 argument into the result file after clear.
 
-This POC has no repeated cycles, three-tier warnings, or keeper integration.
+Repeated cycles (re-arming, retries) are covered by the callback tests,
+not yet by a live run.
 
 ## Checks
 
@@ -110,6 +131,6 @@ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test modules/keeper/plugin
 
 Tests invoke the actual registered callbacks with fake engine operations and
 downstream hook results. They check ordering, hook chaining, configuration,
-subagent exclusion, concurrent tool calls, abort/failure/veto handling, and
-one-shot behavior. They cannot prove real host scheduling; interactive
+subagent exclusion, concurrent tool calls, abort/failure/veto handling,
+re-arming below the threshold, and retries after a failed cycle. They cannot prove real host scheduling; interactive
 canaries supply that evidence.

@@ -159,6 +159,13 @@ run_claude() {
   export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
   # Keeper stays inert unless launched from here.
   export KEEPER_ENABLED=1
+  # Claude's own auto-compact, as a backstop for a keeper cycle that fails
+  # or never runs.
+  local window
+  window="$(keeper_auto_compact_window)" || exit 1
+  if [[ -n "$window" ]]; then
+    export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$window"
+  fi
   # The older harmonik's global hooks (SessionStart, Stop) name the agent
   # from HARMONIK_AGENT, else the tmux session, and write per-agent markers
   # its watcher reads. The full label (hk3-<name> without a prefix) keeps an
@@ -176,7 +183,7 @@ run_claude() {
   fi
 
   echo "hk3: project $PROJECT_DIR" >&2
-  echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE" >&2
+  echo "hk3: agent ${HK3_AGENT_ID:-unnamed}, role $HK3_ROLE, restart at $KEEPER_RESTART_TOKEN_COUNT tokens, clear mode $KEEPER_RESTART_CLEAR_MODE, auto-compact window ${window:-not set}" >&2
   # hk3 session start waits for this line ("hk3: claude ...") to know the
   # launch reached claude; keep its start unchanged.
   echo "hk3: claude ${flags[*]} $*" >&2
