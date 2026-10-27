@@ -164,9 +164,18 @@ KEEPER_STARTUP_KIND=command
 KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
 ```
 
-Keeper re-arms after each completed cycle once usage is back below the
-threshold, and retries a failed cycle at the next tool call, up to three
-times in a row (see the keeper README).
+Keeper checks usage at every tool call and every turn end. It asks for a
+handoff again after each compaction once usage is back below the threshold,
+retries a refused compaction at every turn end, and compacts any turn that
+ends at the threshold + 100000 without a handoff (see the keeper README).
+
+hk3 refuses to launch with a `KEEPER_RESTART_TOKEN_COUNT` that is not a
+plain token count, or a non-zero `KEEPER_AUTO_COMPACT_WINDOW` at or below it.
+
+An `env` block in Claude's user, project or local settings overrides the
+environment hk3 exports, including `KEEPER_*` and
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`. Do not set those there unless you mean to
+override hk3.
 
 `KEEPER_AUTO_COMPACT_WINDOW` sets the token count at which Claude compacts
 on its own, with no handoff and no startup prompt. Keep it far enough above

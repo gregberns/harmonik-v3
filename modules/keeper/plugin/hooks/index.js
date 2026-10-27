@@ -7,7 +7,9 @@
  * with a distinctive marker line. Once that marker shows up in the turn's
  * final answer (never in quoted tool output), the plugin calls Claude's own
  * `session.compact`, and only on a confirmed success does it auto-submit a
- * configured startup message to resume work.
+ * configured startup message to resume work. Independently, any main turn
+ * that ends over a hard ceiling is compacted without a handoff, and a
+ * refused compaction is retried at every turn end until it succeeds.
  *
  * @type {import('claude-code').Register}
  */
@@ -64,12 +66,16 @@ export const CONFIG = {
   // KEEPER_RESTART_CLEAR_MODE=1.
   clearMode: false,
 
-  // Failed cycles in a row (no marker, aborted turn, compaction refused or
-  // vetoed, clear unconfirmed) before keeper stops asking. It asks again
-  // only once usage has fallen below the threshold; Claude's own
-  // auto-compact (CLAUDE_CODE_AUTO_COMPACT_WINDOW, set by hk3) is the
-  // backstop meanwhile.
+  // Handoff requests in a row that end without the marker (or with an
+  // aborted, refused or errored turn) before keeper stops asking. It asks
+  // again once usage has fallen below the threshold. The ceiling below still
+  // applies meanwhile.
   maxFailedAttempts: 3,
+
+  // Hard ceiling: at the end of any main turn with usage at or over
+  // restartAtTokens + ceilingMargin, keeper compacts without asking for a
+  // handoff. A refused compaction is retried at every later turn end.
+  ceilingMargin: 100000,
 };
 
 // ---------------------------------------------------------------------------
@@ -116,18 +122,22 @@ export function findMarkerLine(text, marker) {
 // Per-load state and config. createState() gives register() (and each test)
 // fresh state, never shared across plugin loads or across tests.
 //
-// Re-arming: after a completed cycle keeper waits until observed usage is
-// below the threshold before it can act again, so a threshold under the
-// post-compaction baseline cannot loop. After a failed cycle it asks again
-// at the next tool boundary, up to maxFailedAttempts in a row; then it too
-// waits for usage to fall below the threshold.
+// Keeper checks usage at every tool call (to ask for a handoff) and at every
+// main turn end (to compact). After a compaction it asks for a handoff again
+// once usage has been seen below the threshold, so a threshold under the
+// post-compaction baseline cannot loop. A compaction that is refused (a
+// queued message already started the next turn, a PreCompact veto) is owed
+// and retried at every turn end until it succeeds.
 // ---------------------------------------------------------------------------
 
 export function createState() {
   return {
     armed: true, // may request a handoff at the next tool boundary over the threshold
-    failedAttempts: 0, // failed cycles in a row; reset by a completed cycle or re-arm
+    failedAttempts: 0, // handoff requests in a row that ended without the marker
     awaitingHandoff: false, // threshold crossed, waiting for the marked answer
+    compactOwed: false, // a compaction was refused; retry at the next turn end
+    handoffWritten: false, // the owed compaction follows a completed handoff: send startup after it
+    floor: 0, // tokens left by the last compaction; the ceiling never sits below floor + margin
     pendingClearConfirm: false, // clear mode: waiting for SessionStart source=clear
     clearConfirmed: false,
     configCache: null,
@@ -165,7 +175,11 @@ export async function resolveConfig($, state) {
       startupPrompt: fillTemplate(startupPrompt || CONFIG.startupPrompt, vars),
       startupKind: startupKind === "command" || startupKind === "prompt" ? startupKind : CONFIG.startupKind,
     };
-  })();
+  })().catch((err) => {
+    // Do not cache a failed read for the rest of the load.
+    state.configCache = null;
+    throw err;
+  });
   return state.configCache;
 }
 
@@ -173,24 +187,62 @@ function log($, message) {
   $.ui.log(`[hk3-keeper] ${message}`);
 }
 
-// cycleDone: compaction (or a confirmed clear) succeeded. Disarm until
-// usage is seen below the threshold.
-function cycleDone(state) {
-  state.failedAttempts = 0;
-  state.armed = false;
+function errText(err) {
+  return err && err.message ? err.message : err;
 }
 
-// cycleFailed: the cycle ended without a reset. Ask again at the next tool
-// boundary unless it has failed maxFailedAttempts times in a row.
-function cycleFailed($, cfg, state) {
-  state.failedAttempts += 1;
-  if (state.failedAttempts < cfg.maxFailedAttempts) {
-    state.armed = true;
-    log($, `cycle failed (attempt ${state.failedAttempts} of ${cfg.maxFailedAttempts}); will ask again at the next tool call`);
-  } else {
-    state.armed = false;
-    log($, `cycle failed ${state.failedAttempts} times in a row; not asking again until usage falls below the threshold`);
+// readTokens: the context size, or undefined when it cannot be read (an
+// unknown size must not look like a small one).
+async function readTokens($) {
+  try {
+    const usage = await $.session.usage();
+    const tokens = usage && usage.context && usage.context.tokens;
+    return Number.isFinite(tokens) ? tokens : undefined;
+  } catch (err) {
+    log($, `session.usage() failed: ${errText(err)}`);
+    return undefined;
   }
+}
+
+function ceilingOf(cfg, state) {
+  return Math.max(cfg.restartAtTokens, state.floor) + cfg.ceilingMargin;
+}
+
+// handoffFailed: the handoff turn ended without the marker. Ask again at the
+// next tool call unless that has happened maxFailedAttempts times in a row.
+function handoffFailed($, cfg, state) {
+  state.failedAttempts += 1;
+  state.armed = state.failedAttempts < cfg.maxFailedAttempts;
+  log($, state.armed
+    ? `handoff failed (attempt ${state.failedAttempts} of ${cfg.maxFailedAttempts}); will ask again at the next tool call`
+    : `handoff failed ${state.failedAttempts} times in a row; not asking again until usage falls below the threshold; compacting without a handoff at ${ceilingOf(cfg, state)} tokens`);
+}
+
+// compactNow: compact; on success send startup if a handoff was written. A
+// refused or vetoed compaction is owed and retried at the next turn end.
+async function compactNow($, cfg, state, why) {
+  let result;
+  try {
+    result = await $.session.compact(cfg.compactInstructions ? { instructions: cfg.compactInstructions } : undefined);
+  } catch (err) {
+    // E.g. "a turn is in flight": a queued message (often a teammate's)
+    // started the next turn as soon as the handoff turn ended.
+    state.compactOwed = true;
+    log($, `${why}: compaction failed: ${errText(err)}; retrying at the next turn end`);
+    return;
+  }
+  if (result && typeof result === "object" && "skip" in result) {
+    state.compactOwed = true;
+    log($, `${why}: compaction skipped: ${result.skip}; retrying at the next turn end`);
+    return;
+  }
+  const tokensBefore = result && result.tokensBefore;
+  const tokensAfter = result && result.tokensAfter;
+  log($, `${why}: compaction completed (tokensBefore=${tokensBefore ?? "?"} tokensAfter=${tokensAfter ?? "?"})`);
+  const startup = state.handoffWritten;
+  Object.assign(state, { compactOwed: false, handoffWritten: false, armed: false, failedAttempts: 0,
+    floor: Number.isFinite(tokensAfter) ? tokensAfter : 0 });
+  if (startup) await submitStartup($, cfg);
 }
 
 async function submitStartup($, cfg) {
@@ -204,29 +256,23 @@ async function submitStartup($, cfg) {
     }
     log($, `startup submitted (${cfg.startupKind}): ${cfg.startupPrompt}`);
   } catch (err) {
-    log($, `startup submission failed: ${err && err.message ? err.message : err}`);
+    log($, `startup submission failed: ${errText(err)}`);
   }
 }
 
 // ---------------------------------------------------------------------------
 // A. Observe usage at a tool boundary during a running turn, and deliver the
-// handoff request mid-turn via PostToolUse additionalContext. This is the
-// delivery point used by this POC; text-only turns have no tool boundary.
+// handoff request mid-turn via PostToolUse additionalContext. Text-only turns
+// have no tool boundary; the ceiling check at turn end covers them.
 // ---------------------------------------------------------------------------
 export async function handlePostToolUse($, e, state) {
   if (isSubagentEvent(e)) return {};
-  if (state.awaitingHandoff) return {};
+  if (state.awaitingHandoff || state.compactOwed) return {};
 
   const cfg = await resolveConfig($, state);
   if (!cfg.enabled) return {};
-  let usage;
-  try {
-    usage = await $.session.usage();
-  } catch (err) {
-    log($, `session.usage() failed: ${err && err.message ? err.message : err}`);
-    return {};
-  }
-  const tokens = (usage && usage.context && usage.context.tokens) || 0;
+  const tokens = await readTokens($);
+  if (tokens === undefined) return {};
   log($, `usage observed: ${tokens} tokens (threshold ${cfg.restartAtTokens})`);
 
   if (tokens < cfg.restartAtTokens) {
@@ -238,7 +284,7 @@ export async function handlePostToolUse($, e, state) {
     return {};
   }
   // Another concurrent tool handler may have acted while usage was read.
-  if (!state.armed || state.awaitingHandoff) return {};
+  if (!state.armed || state.awaitingHandoff || state.compactOwed) return {};
 
   state.awaitingHandoff = true;
   state.armed = false;
@@ -270,85 +316,69 @@ export async function handleTurnComplete($, e, state) {
   const passthrough = { text: e.answer };
 
   if (isSubagentTurn(e)) return passthrough;
-  if (!state.awaitingHandoff) return passthrough;
-
   const cfg = await resolveConfig($, state);
+  if (!cfg.enabled) return passthrough;
 
-  if (e.reason !== "answer") {
-    // An explicit user interruption (aborted), a model refusal, or an API
-    // error ended this turn instead of a normal answer: preserve the
-    // operator's abort/error behavior by stopping the experiment here
-    // rather than guessing at readiness. No compaction, no startup.
-    log($, `turn ended with reason="${e.reason}" instead of a normal answer; treating the handoff as failed`);
+  if (state.awaitingHandoff) {
     state.awaitingHandoff = false;
-    cycleFailed($, cfg, state);
-    return passthrough;
-  }
-
-  const finalAnswer = e.answer || "";
-
-  if (!findMarkerLine(finalAnswer, cfg.handoffMarker)) {
-    // A completed turn that simply didn't finish with the marker (an
-    // incomplete or declined handoff): stop the experiment here rather than
-    // guess. No compaction, no startup.
-    log($, "turn completed without the handoff marker; treating handoff as failed");
-    state.awaitingHandoff = false;
-    cycleFailed($, cfg, state);
-    return passthrough;
-  }
-
-  state.awaitingHandoff = false;
-  log($, `handoff completed (found marker "${cfg.handoffMarker}")`);
-
-  if (cfg.clearMode) {
-    log($, "clear mode is experimental; requesting /clear via command.run, success unconfirmed until SessionStart reports source=clear");
-    state.pendingClearConfirm = true;
-    state.clearConfirmed = false;
-    try {
-      await $.command.run({ command: "clear" });
-      // SessionStart runs inside command.run(clear). Starting a new prompt
-      // there deadlocks; wait until clear has returned before submitting.
-      if (state.clearConfirmed) {
-        cycleDone(state);
-        await submitStartup($, cfg);
-      } else {
-        log($, "clear unconfirmed; not submitting startup");
-        cycleFailed($, cfg, state);
+    if (e.reason !== "answer") {
+      // An explicit user interruption (aborted), a model refusal, or an API
+      // error ended this turn instead of a normal answer.
+      log($, `turn ended with reason="${e.reason}" instead of a normal answer; treating the handoff as failed`);
+      handoffFailed($, cfg, state);
+    } else if (!findMarkerLine(e.answer || "", cfg.handoffMarker)) {
+      log($, "turn completed without the handoff marker; treating handoff as failed");
+      handoffFailed($, cfg, state);
+    } else {
+      log($, `handoff completed (found marker "${cfg.handoffMarker}")`);
+      state.failedAttempts = 0;
+      state.handoffWritten = true;
+      if (cfg.clearMode) {
+        await clearNow($, cfg, state);
+        return passthrough;
       }
-    } catch (err) {
-      log($, `clear command invocation failed: ${err && err.message ? err.message : err}`);
-      cycleFailed($, cfg, state);
-    } finally {
-      state.pendingClearConfirm = false;
-      state.clearConfirmed = false;
+      await compactNow($, cfg, state, "handoff");
+      return passthrough;
     }
-    return passthrough;
   }
 
-  let result;
-  try {
-    const args = cfg.compactInstructions ? { instructions: cfg.compactInstructions } : undefined;
-    result = await $.session.compact(args);
-  } catch (err) {
-    // E.g. "a turn is in flight": a queued message (often a teammate's)
-    // started the next turn as soon as the handoff turn ended.
-    log($, `compaction failed: ${err && err.message ? err.message : err}; leaving the conversation as-is`);
-    cycleFailed($, cfg, state);
+  if (state.compactOwed) {
+    await compactNow($, cfg, state, "owed");
     return passthrough;
   }
-
-  if (result && typeof result === "object" && "skip" in result) {
-    log($, `compaction skipped: ${result.skip}; not submitting startup`);
-    cycleFailed($, cfg, state);
-    return passthrough;
+  // The operator interrupted this turn; leave them in control until the next.
+  if (e.reason === "aborted") return passthrough;
+  const tokens = await readTokens($);
+  if (tokens !== undefined && tokens >= ceilingOf(cfg, state)) {
+    await compactNow($, cfg, state, `ceiling reached at ${tokens} tokens`);
   }
-
-  const tokensBefore = result && result.tokensBefore;
-  const tokensAfter = result && result.tokensAfter;
-  log($, `compaction completed (tokensBefore=${tokensBefore ?? "?"} tokensAfter=${tokensAfter ?? "?"})`);
-  cycleDone(state);
-  await submitStartup($, cfg);
   return passthrough;
+}
+
+// clearNow: clear mode after a completed handoff. A failed or unconfirmed
+// clear falls back to compaction, retried until it succeeds.
+async function clearNow($, cfg, state) {
+  log($, "clear mode is experimental; requesting /clear via command.run, success unconfirmed until SessionStart reports source=clear");
+  state.pendingClearConfirm = true;
+  state.clearConfirmed = false;
+  try {
+    await $.command.run({ command: "clear" });
+    // SessionStart runs inside command.run(clear). Starting a new prompt
+    // there deadlocks; wait until clear has returned before submitting.
+    if (state.clearConfirmed) {
+      Object.assign(state, { handoffWritten: false, armed: false, floor: 0 });
+      await submitStartup($, cfg);
+    } else {
+      log($, "clear unconfirmed; compacting at the next turn end instead");
+      state.compactOwed = true;
+    }
+  } catch (err) {
+    log($, `clear command invocation failed: ${errText(err)}; compacting at the next turn end instead`);
+    state.compactOwed = true;
+  } finally {
+    state.pendingClearConfirm = false;
+    state.clearConfirmed = false;
+  }
 }
 
 // ---------------------------------------------------------------------------

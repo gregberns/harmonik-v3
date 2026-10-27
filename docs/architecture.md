@@ -225,6 +225,7 @@ as `--name`.
    - `--dangerously-skip-permissions` / `--remote-control` if enabled
 
    It also exports `KEEPER_ENABLED=1`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`,
+   `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (from `KEEPER_AUTO_COMPACT_WINDOW`),
    `HK3_ROLE`, `HK3_AGENT_NAME`, `HK3_AGENT_ID` (the label), `HK3_TEAM` (team
    members only) and `HK3_STATUSLINE_INNER` for keeper and the status line,
    and `HARMONIK_AGENT` (see below).

@@ -12,14 +12,24 @@ function harness(options: any = {}) {
   let compactFailures = options.compactFailures ?? (options.failure ? Infinity : 0);
   let finishSessionChain: (() => void) | undefined;
   const $ = {
-    env: { get: async (name: string) => ({ KEEPER_ENABLED: "1", ...options.env })[name] },
+    env: { get: async (name: string) => {
+      if (options.envFailures && options.envFailures-- > 0) throw new Error("env read failed");
+      return ({ KEEPER_ENABLED: "1", ...options.env })[name];
+    } },
     ui: { log: (line: string) => logs.push(line) },
     session: {
-      usage: async () => ({ context: { tokens } }),
+      usage: async () => {
+        if (options.usageFailure) throw new Error("usage failed");
+        return { context: { tokens } };
+      },
       compact: async (args: any) => {
         calls.push(["compact", args]);
-        if (compactFailures-- > 0) throw new Error("a turn is in flight");
-        return options.skip ? { skip: "veto" } : { tokensBefore: 250000, tokensAfter: 4000 };
+        // A queued message (a teammate's) starts the next turn first.
+        if (compactFailures-- > 0) throw new Error("a turn is in flight; the conversation compacts between turns");
+        if (options.skip) return { skip: "veto" };
+        const tokensBefore = tokens;
+        tokens = options.tokensAfter ?? 4000;
+        return { tokensBefore, tokensAfter: tokens };
       },
     },
     prompt: { submit: async (args: any) => {
@@ -98,6 +108,7 @@ test("re-arms after a completed cycle only once usage falls below the threshold"
   await h.finish();
   expect(h.calls.length).toBe(2);
   // Still over the threshold after compaction (a tiny threshold): no loop.
+  h.setTokens(250000);
   expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
   h.setTokens(4000);
   expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
@@ -121,37 +132,94 @@ test("abort, refusal, error, or missing final marker never starts, and asks agai
   expect(findMarkerLine("Done\nHANDOFF_READY\n\n", "HANDOFF_READY")).toBe(true);
 });
 
-test("failed or vetoed compaction never starts another turn", async () => {
+test("failed or vetoed compaction never starts another turn, and is retried at every turn end", async () => {
   for (const option of [{ failure: true }, { skip: true }]) {
     const h = harness(option);
     await h.fire("classic.PostToolUse");
     await h.finish();
     expect(h.calls.length).toBe(1);
+    // No new handoff request while the compaction is owed.
+    expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+    await h.finish({ answer: "other work" });
+    await h.finish({ reason: "aborted" });
+    expect(h.calls).toEqual([["compact", undefined], ["compact", undefined], ["compact", undefined]]);
   }
 });
 
-test("compaction refused by a queued turn is retried after a fresh handoff", async () => {
+test("compaction refused by a queued turn is retried at that turn's end without a new handoff", async () => {
   const h = harness({ compactFailures: 1 });
   await h.fire("classic.PostToolUse");
   await h.finish();
   expect(h.calls).toEqual([["compact", undefined]]);
-  // The queued turn's next tool call asks for a fresh handoff.
-  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
-  await h.finish();
+  // The queued turn runs: no second handoff request.
+  expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+  await h.finish({ answer: "replied to a teammate" });
   expect(h.calls).toEqual([["compact", undefined], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
 });
 
-test("stops asking after maxFailedAttempts failures until usage falls below the threshold", async () => {
-  const h = harness({ failure: true });
+test("ceiling: any main turn end over threshold + margin compacts without a handoff or startup", async () => {
+  const ceiling = CONFIG.restartAtTokens + CONFIG.ceilingMargin;
+  const h = harness({ tokens: ceiling - 1 });
+  await h.finish({ answer: "text-only turn" });
+  expect(h.calls).toEqual([]);
+  h.setTokens(ceiling);
+  await h.finish({ agentId: "child", answer: "subagent turn" });
+  await h.finish({ reason: "aborted", answer: "" });
+  expect(h.calls).toEqual([]);
+  await h.finish({ answer: "text-only turn" });
+  expect(h.calls).toEqual([["compact", undefined]]);
+});
+
+test("ceiling: an ignored handoff request still ends in compaction", async () => {
+  const h = harness();
+  await h.fire("classic.PostToolUse");
+  h.setTokens(CONFIG.restartAtTokens + CONFIG.ceilingMargin + 5);
+  await h.finish({ answer: "kept working" });
+  expect(h.calls).toEqual([["compact", undefined]]);
+});
+
+test("ceiling sits above a heavy post-compaction baseline, so it cannot compact every turn", async () => {
+  const after = CONFIG.restartAtTokens + CONFIG.ceilingMargin + 10000;
+  const h = harness({ tokens: after + 50000, tokensAfter: after });
+  await h.finish();
+  expect(h.calls.length).toBe(1);
+  await h.finish();
+  expect(h.calls.length).toBe(1);
+  h.setTokens(after + CONFIG.ceilingMargin);
+  await h.finish();
+  expect(h.calls.length).toBe(2);
+});
+
+test("stops asking after maxFailedAttempts unmarked handoffs, but the ceiling still compacts", async () => {
+  const h = harness();
   for (let i = 0; i < CONFIG.maxFailedAttempts; i++) {
     expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
-    await h.finish();
+    await h.finish({ answer: "no marker" });
   }
-  expect(h.calls.length).toBe(CONFIG.maxFailedAttempts);
+  expect(h.calls).toEqual([]);
   expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
-  h.setTokens(1000);
+  h.setTokens(CONFIG.restartAtTokens + CONFIG.ceilingMargin);
+  await h.finish({ answer: "no marker" });
+  expect(h.calls).toEqual([["compact", undefined]]);
+  // Below the threshold after compaction: asks for a handoff again.
   await h.fire("classic.PostToolUse");
   h.setTokens(250000);
+  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
+});
+
+test("unreadable usage neither re-arms nor compacts", async () => {
+  for (const option of [{ usageFailure: true }, { tokens: undefined as any }]) {
+    const h = harness({ ...option });
+    if (!option.usageFailure) h.setTokens(undefined as any);
+    expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+    await h.finish({ answer: "text" });
+    expect(h.calls).toEqual([]);
+  }
+});
+
+test("a failed settings read is not cached for the rest of the load", async () => {
+  const h = harness({ envFailures: 1 });
+  await h.fire("classic.PostToolUse").catch(() => {});
   expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
 });
 

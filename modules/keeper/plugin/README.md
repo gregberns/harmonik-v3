@@ -43,25 +43,36 @@ next step without another keystroke.
 tool call should trigger it. Omit the token override for the **200,000-token**
 default.
 
-## Repeated cycles
+## Repeated cycles and the ceiling
 
-After a completed cycle keeper waits until it observes usage below the
-threshold before it can act again, so a threshold below the
-post-compaction baseline (such as 500) gives one cycle, not a loop. A
-failed cycle (no marker, an aborted turn, compaction refused or vetoed, an
-unconfirmed clear) asks for a fresh handoff at the next tool call, up to
-`maxFailedAttempts` (3) in a row; after that keeper also waits for usage to
-fall below the threshold.
+Keeper checks usage at every main-agent tool call (to ask for a handoff) and
+at the end of every main turn (to compact). It never stops checking.
 
-The common failure is a queued message: in a team, a teammate's message
-arrives during the handoff turn, Claude starts that turn as soon as the
-handoff turn ends, and `session.compact` refuses with "a turn is in
-flight". The retry asks again during that next turn.
+- **After a compaction** it asks for a handoff again once it has seen usage
+  below the threshold, so a threshold below the post-compaction baseline
+  (such as 500) gives one cycle, not a loop.
+- **A handoff turn without the marker** (or aborted, refused, errored) asks
+  again at the next tool call, up to `maxFailedAttempts` (3) in a row; then
+  keeper stops asking until usage falls below the threshold.
+- **A refused or vetoed compaction is owed** and retried at every later turn
+  end, without asking for another handoff. The common cause is a queued
+  message: in a team, a teammate's message arrives during the handoff turn,
+  Claude starts that turn as soon as the handoff turn ends, and
+  `session.compact` refuses with "a turn is in flight". Startup is sent
+  after the owed compaction succeeds.
+- **The ceiling**, threshold + `ceilingMargin` (100000): any main turn that
+  ends at or over it is compacted at once, with no handoff and no startup.
+  This covers text-only turns, an ignored handoff request, and the time
+  after `maxFailedAttempts`. A turn the operator aborted is left alone. If a
+  compaction leaves usage high, the ceiling rises to that usage + the margin,
+  so keeper cannot compact on every turn.
 
-Claude's own auto-compact is the backstop when keeper never succeeds: hk3
-exports `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (see `KEEPER_AUTO_COMPACT_WINDOW`
-in docs/configuration.md). It compacts without a handoff or a startup
-prompt.
+A clear (clear mode) that fails or is not confirmed falls back to an owed
+compaction.
+
+Claude's own auto-compact (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, which hk3
+exports; see `KEEPER_AUTO_COMPACT_WINDOW` in docs/configuration.md) is a
+second, independent backstop. With the defaults both sit at about 300k.
 
 ## Configuration
 
@@ -77,7 +88,8 @@ behavior defaults:
 | `startupKind` | `"prompt"` or `"command"`. |
 | `startupPrompt` | Startup text, or slash command such as `/session-resume task one`. Commands are Claude commands, not shell commands. |
 | `clearMode` | Use `/clear` instead of built-in compaction, default false. |
-| `maxFailedAttempts` | Failed cycles in a row before keeper waits for usage to fall below the threshold, default 3. |
+| `maxFailedAttempts` | Unmarked handoff turns in a row before keeper stops asking until usage falls below the threshold, default 3. |
+| `ceilingMargin` | Tokens above the threshold at which any main turn end compacts without a handoff, default 100000. |
 
 `KEEPER_HANDOFF_PROMPT`, `KEEPER_STARTUP_KIND` and `KEEPER_STARTUP_PROMPT`
 override the prompts per project; `{name}` and `{role}` are filled from
@@ -98,11 +110,12 @@ to read its HANDOFF. The plugin constructs no replacement conversation.
 
 `classic.PostToolUse` checks usage on the main agent's tool boundaries and
 adds the handoff request to `additionalContext`. A text-only turn has no
-threshold check. Parallel tool callbacks request only one handoff.
+tool call; the ceiling check at `turn.complete` covers it. Parallel tool
+callbacks request only one handoff.
 
 `turn.complete` checks that the main turn finished normally and its final
 non-empty answer line equals the marker. Abort, refusal, error, or a missing
-marker ends the experiment without restarting. `classic.Stop` is too early:
+marker does not compact (unless the ceiling is reached). `classic.Stop` is too early:
 Claude rejects compaction from a hook still holding the turn open.
 
 After successful compaction, the plugin submits startup. Compaction errors
@@ -119,8 +132,8 @@ A third live test changed only the startup configuration to a local slash
 command with an argument; Claude expanded the command and wrote the expected
 argument into the result file after clear.
 
-Repeated cycles (re-arming, retries) are covered by the callback tests,
-not yet by a live run.
+Repeated cycles, owed compactions and the ceiling are covered by the
+callback tests, not yet by a live run.
 
 ## Checks
 

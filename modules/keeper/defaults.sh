@@ -16,19 +16,29 @@ export KEEPER_RESTART_TOKEN_COUNT KEEPER_RESTART_CLEAR_MODE
 # CLAUDE_CODE_AUTO_COMPACT_WINDOW, a backstop for a keeper cycle that fails
 # or never runs: KEEPER_AUTO_COMPACT_WINDOW, else the restart threshold +
 # 100000 (at most 1000000). Empty for 0 (leave Claude's setting alone).
+# Also refuses a threshold keeper could not parse.
 # Computed at launch rather than exported here: hk3 session types every
 # KEEPER_* variable into the pane, and that line has a length limit.
 keeper_auto_compact_window() {
   local window="${KEEPER_AUTO_COMPACT_WINDOW:-}" restart="$KEEPER_RESTART_TOKEN_COUNT"
+  # Keeper would fall back to its default for a value it cannot parse, and
+  # disagree with the window computed here; refuse it instead.
+  [[ "$restart" =~ ^[1-9][0-9]{0,6}$ ]] || {
+    echo "hk3: KEEPER_RESTART_TOKEN_COUNT must be a token count, not '$restart'" >&2
+    return 1
+  }
   if [[ -z "$window" ]]; then
-    # Keeper falls back to 200000 for a threshold it cannot parse; match it.
-    [[ "$restart" =~ ^[1-9][0-9]*$ ]] || restart="$KEEPER_DEFAULT_RESTART_TOKEN_COUNT"
     window=$((restart + 100000))
     ((window <= 1000000)) || window=1000000
   fi
   [[ "$window" == 0 ]] && return 0
-  [[ "$window" =~ ^[1-9][0-9]*$ ]] && ((window >= 100000 && window <= 1000000)) || {
+  [[ "$window" =~ ^[1-9][0-9]{0,6}$ ]] && ((window >= 100000 && window <= 1000000)) || {
     echo "hk3: KEEPER_AUTO_COMPACT_WINDOW must be 0 or a token count from 100000 to 1000000, not '$window'" >&2
+    return 1
+  }
+  # At or below the threshold Claude compacts first, with no handoff.
+  ((window > restart)) || {
+    echo "hk3: KEEPER_AUTO_COMPACT_WINDOW ($window) must be above KEEPER_RESTART_TOKEN_COUNT ($restart)" >&2
     return 1
   }
   echo "$window"
