@@ -40,19 +40,22 @@ submitted. Check that the resumed agent reads HANDOFF and completes the
 next step without another keystroke.
 
 500 tokens is deliberately below most system/tool baselines, so the first
-tool call should trigger it. Omit the token override for the **200,000-token**
+tool call (or, under the security default, the end of the first turn)
+should trigger it. Omit the token override for the **200,000-token**
 default.
 
 ## Repeated cycles and the ceiling
 
-Keeper checks usage at every main-agent tool call (to ask for a handoff) and
-at the end of every main turn (to compact). It never stops checking.
+Keeper checks usage at every main-agent tool call and at the end of every
+main turn. Either can ask for a handoff; the turn end also compacts. It
+never stops checking.
 
 - **After a compaction** it asks for a handoff again once it has seen usage
   below the threshold, so a threshold below the post-compaction baseline
   (such as 500) gives one cycle, not a loop.
-- **A handoff turn without the marker** (or aborted, refused, errored) asks
-  again at the next tool call, up to `maxFailedAttempts` (3) in a row; then
+- **A handoff turn without the marker** asks again at its own turn end. An
+  aborted, refused or errored handoff turn asks again at the next tool call
+  or normal turn end. Either way, up to `maxFailedAttempts` (3) in a row; then
   keeper stops asking until usage falls below the threshold.
 - **A refused or vetoed compaction is owed** and retried at every later turn
   end, without asking for another handoff. The common cause is a queued
@@ -108,10 +111,27 @@ to read its HANDOFF. The plugin constructs no replacement conversation.
 
 ## Mechanism and limits
 
-`classic.PostToolUse` checks usage on the main agent's tool boundaries and
-adds the handoff request to `additionalContext`. A text-only turn has no
-tool call; the ceiling check at `turn.complete` covers it. Parallel tool
-callbacks request only one handoff.
+Keeper asks for the handoff in two places. `classic.PostToolUse` checks
+usage on the main agent's tool boundaries and adds the request to
+`additionalContext`, mid-turn. `turn.complete` checks usage at the end of
+each main turn that ended with a normal answer, under the ceiling: below
+the threshold it re-arms, and over it it submits the request as a new
+prompt, which runs as the next turn. A turn in which PostToolUse already
+asked is the handoff turn, so one crossing gets one request. Parallel
+callbacks also request only one handoff. Keeper never submits a prompt
+after an aborted, refused or errored turn.
+
+Why the turn-end request: from Claude Code about 2.1.32x, the built-in
+security plugin `cc-plugin-sec-default` seats itself outermost for Team and
+Enterprise organizations and skips every `classic.*` event for a plugin
+loaded with `--plugin-dir`. The session shows `hk3-keeper: its
+classic.PostToolUse hook was skipped`. `turn.complete` is not a classic
+event and still arrives. A long tool-using turn is then checked only when
+it ends.
+
+Clear mode depends on `classic.SessionStart` to confirm the clear. Under
+the security default that event is skipped, so a clear never confirms and
+keeper falls back to an owed compaction. Use compaction mode there.
 
 `turn.complete` checks that the main turn finished normally and its final
 non-empty answer line equals the marker. Abort, refusal, error, or a missing
@@ -132,8 +152,12 @@ A third live test changed only the startup configuration to a local slash
 command with an argument; Claude expanded the command and wrote the expected
 argument into the result file after clear.
 
-Repeated cycles, owed compactions and the ceiling are covered by the
-callback tests, not yet by a live run.
+On Claude Code 2.1.323 under the security default, a live run with a
+500-token threshold went from the turn-end request through the handoff,
+compaction and startup, and the resumed agent read its handoff, with no
+keystroke. The next startup turn ended over the threshold and keeper did
+not ask again. Repeated cycles, owed compactions and the ceiling are covered
+by the callback tests, not yet by a live run.
 
 ## Checks
 

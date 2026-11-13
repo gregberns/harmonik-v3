@@ -164,8 +164,9 @@ KEEPER_STARTUP_KIND=command
 KEEPER_STARTUP_PROMPT="/session-resume HANDOFF-{name}"
 ```
 
-Keeper checks usage at every tool call and every turn end. It asks for a
-handoff again after each compaction once usage is back below the threshold,
+Keeper checks usage at every tool call and every turn end, and either can
+ask for the handoff (under Claude's security default only the turn end
+runs). It asks for a handoff again after each compaction once usage is back below the threshold,
 retries a refused compaction at every turn end, and compacts any turn that
 ends at the threshold + 100000 without a handoff (see the keeper README).
 
