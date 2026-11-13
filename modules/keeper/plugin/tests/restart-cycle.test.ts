@@ -77,7 +77,9 @@ function harness(options: any = {}) {
     return fire("turn.complete", { reason: "answer", answer: CONFIG.handoffMarker, turnId, ...rest });
   }
   const setTokens = (n: number) => { tokens = n; };
-  return { fire, finish, calls, logs, sentinel, setTokens, releaseSessionChain: () => finishSessionChain?.() };
+  // The operator deletes a queued prompt (Esc), so it never starts a turn.
+  const dropPending = () => { pending.length = 0; };
+  return { fire, finish, calls, logs, sentinel, setTokens, dropPending, releaseSessionChain: () => finishSessionChain?.() };
 }
 
 test("registered hooks preserve downstream results and compact then start once", async () => {
@@ -370,4 +372,31 @@ test("queued messages do not use up the failed-handoff cap", async () => {
   expect(h.calls).toEqual([["prompt", handoffRequest]]);
   await h.finish();
   expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+});
+
+test("a request that never starts does not block the next crossing after a ceiling compaction", async () => {
+  const h = harness();
+  await h.finish({ answer: "work" });
+  h.dropPending();
+  h.setTokens(CONFIG.restartAtTokens + CONFIG.ceilingMargin);
+  await h.finish({ answer: "more work" });
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined]]);
+  // Below the threshold after the compaction, then over it again.
+  await h.finish({ answer: "more work" });
+  h.setTokens(250000);
+  await h.finish({ answer: "more work" });
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", handoffRequest]]);
+});
+
+test("a request whose turn never starts is dropped after maxQueuedTurns turn ends and asked again", async () => {
+  const h = harness();
+  await h.finish({ answer: "work" });
+  h.dropPending();
+  for (let i = 0; i < CONFIG.maxQueuedTurns - 1; i++) await h.finish({ answer: "other work" });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
+  await h.finish({ answer: "other work" });
+  // Dropped and counted as a failed attempt, so the cap still bounds it.
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["prompt", handoffRequest]]);
+  await h.finish();
+  expect(h.calls.slice(2)).toEqual([["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
 });
