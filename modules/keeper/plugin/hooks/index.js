@@ -136,6 +136,8 @@ export function createState() {
     armed: true, // may request a handoff at the next tool boundary over the threshold
     failedAttempts: 0, // handoff requests in a row that ended without the marker
     awaitingHandoff: false, // threshold crossed, waiting for the marked answer
+    handoffSource: null, // "tool": the current turn carries the request; "turnEnd": a later turn does
+    handoffTurnId: undefined, // turnEnd only: the turn that keeper's request started (from turn.start)
     compactOwed: false, // a compaction was refused; retry at the next turn end
     handoffWritten: false, // the owed compaction follows a completed handoff: send startup after it
     floor: 0, // tokens left by the last compaction; the ceiling never sits below floor + margin
@@ -285,6 +287,7 @@ export async function handlePostToolUse($, e, state) {
   if (!state.armed || state.awaitingHandoff || state.compactOwed) return {};
 
   state.awaitingHandoff = true;
+  state.handoffSource = "tool";
   state.armed = false;
   log($, `threshold reached at ${tokens} tokens; requesting handoff`);
   return { additionalContext: [handoffRequestText(cfg)] };
@@ -297,9 +300,12 @@ function rearm($, state) {
   log($, `usage below the threshold; re-armed`);
 }
 
+function markerInstruction(cfg) {
+  return "End your final answer for this turn with a line containing exactly: " + cfg.handoffMarker;
+}
+
 function handoffRequestText(cfg) {
-  return cfg.handoffPrompt +
-    "\nEnd your final answer for this turn with a line containing exactly: " + cfg.handoffMarker;
+  return cfg.handoffPrompt + "\n" + markerInstruction(cfg);
 }
 
 // requestHandoffAtTurnEnd: the turn-end path to the handoff request.
@@ -317,12 +323,15 @@ async function requestHandoffAtTurnEnd($, cfg, state, tokens) {
   // Set before the submit: the handoff turn can end before submit returns,
   // and it must be read as the handoff turn.
   state.awaitingHandoff = true;
+  state.handoffSource = "turnEnd";
+  state.handoffTurnId = undefined;
   state.armed = false;
   log($, `threshold reached at ${tokens} tokens at turn end; requesting handoff`);
   try {
     await $.prompt.submit({ text: handoffRequestText(cfg) });
   } catch (err) {
     state.awaitingHandoff = false;
+    state.handoffSource = null;
     log($, `handoff request failed: ${errText(err)}`);
     handoffFailed($, cfg, state);
   }
@@ -354,8 +363,16 @@ export async function handleTurnComplete($, e, state) {
   const cfg = await resolveConfig($, state);
   if (!cfg.enabled) return passthrough;
 
-  if (state.awaitingHandoff) {
-    state.awaitingHandoff = false;
+  // A turn-end request runs in a later turn, and a message queued before it
+  // (often a teammate's) runs first. Only the turn that keeper's own prompt
+  // started is the handoff turn; any other leaves the request outstanding.
+  const isHandoffTurn = state.awaitingHandoff && (state.handoffSource === "tool" ||
+    (state.handoffTurnId !== undefined && e.turnId === state.handoffTurnId));
+  if (state.awaitingHandoff && !isHandoffTurn) {
+    log($, "a turn ended before the handoff request ran; still waiting for it");
+  }
+  if (isHandoffTurn) {
+    Object.assign(state, { awaitingHandoff: false, handoffSource: null, handoffTurnId: undefined });
     if (e.reason !== "answer") {
       // An explicit user interruption (aborted), a model refusal, or an API
       // error ended this turn instead of a normal answer.
@@ -407,6 +424,18 @@ export async function handleTurnComplete($, e, state) {
   return passthrough;
 }
 
+// handleTurnStart: record the turn that keeper's turn-end request started.
+// turn.start carries the prompt's text and the turnId its turn.complete
+// will carry; $.prompt.submit returns neither a turn id nor a handle.
+export async function handleTurnStart($, e, state) {
+  if (isSubagentTurn(e)) return;
+  if (!state.awaitingHandoff || state.handoffSource !== "turnEnd" || state.handoffTurnId !== undefined) return;
+  const cfg = await resolveConfig($, state);
+  if (!cfg.enabled || !(e.text || "").includes(markerInstruction(cfg))) return;
+  state.handoffTurnId = e.turnId;
+  log($, "the handoff request's turn started");
+}
+
 // clearNow: clear mode after a completed handoff. A failed or unconfirmed
 // clear falls back to compaction, retried until it succeeds.
 async function clearNow($, cfg, state) {
@@ -456,6 +485,10 @@ export const register = (on, _options) => {
     return { ...downstream, additionalContext: [
       ...(downstream.additionalContext || []), ...ours.additionalContext,
     ] };
+  });
+  on("turn.start", async ($, e, next) => {
+    await handleTurnStart($, e, state);
+    return next(e);
   });
   on("turn.complete", async ($, e, next) => {
     const downstream = await next(e);
