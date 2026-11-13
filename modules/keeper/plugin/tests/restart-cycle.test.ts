@@ -14,6 +14,10 @@ function harness(options: any = {}) {
   let tokens = options.tokens ?? 250000;
   let compactFailures = options.compactFailures ?? (options.failure ? Infinity : 0);
   let finishSessionChain: (() => void) | undefined;
+  // Models the engine's prompt queue: a prompt keeper submits starts a later
+  // main turn, after any message that was queued first ({ queued: true }).
+  const pending: string[] = [];
+  let turnCount = 0;
   const $ = {
     env: { get: async (name: string) => {
       if (options.envFailures && options.envFailures-- > 0) throw new Error("env read failed");
@@ -38,6 +42,7 @@ function harness(options: any = {}) {
     prompt: { submit: async (args: any) => {
       if (clearing) throw new Error("startup nested inside clear");
       calls.push(["prompt", args]);
+      pending.push(args.text);
     } },
     command: { run: async (args: any) => {
       calls.push(["command", args]);
@@ -54,6 +59,7 @@ function harness(options: any = {}) {
     } },
   };
   async function fire(name: string, event: any = {}) {
+    if (!hooks[name]) return undefined;
     return hooks[name]($, event, async (forwarded: any) => {
       expect(forwarded).toEqual(event);
       if (name === "classic.SessionStart" && clearing && options.detachedSession) {
@@ -62,7 +68,14 @@ function harness(options: any = {}) {
       return sentinel;
     });
   }
-  const finish = (event: any = {}) => fire("turn.complete", { reason: "answer", answer: CONFIG.handoffMarker, ...event });
+  async function finish(event: any = {}) {
+    const { queued, ...rest } = event;
+    const turnId = rest.turnId ?? `turn-${++turnCount}`;
+    if (!rest.agentId) {
+      await fire("turn.start", { text: queued ? "a queued teammate message" : (pending.shift() ?? ""), turnId });
+    }
+    return fire("turn.complete", { reason: "answer", answer: CONFIG.handoffMarker, turnId, ...rest });
+  }
   const setTokens = (n: number) => { tokens = n; };
   return { fire, finish, calls, logs, sentinel, setTokens, releaseSessionChain: () => finishSessionChain?.() };
 }
@@ -334,4 +347,27 @@ test("turn end re-arms below the threshold and never requests twice for one cros
     await g.finish({ reason, answer: "" });
     expect(g.calls).toEqual([]);
   }
+});
+
+test("a message queued before the turn-end request does not count as the handoff turn", async () => {
+  const h = harness();
+  await h.finish({ answer: "step 1 done" });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
+  // The teammate's message was queued first, so its turn runs first.
+  await h.finish({ queued: true, answer: "replied to a teammate" });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
+  await h.finish();
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+  // No duplicate handoff request is left to run afterwards.
+  await h.finish({ answer: "resumed" });
+  expect(h.calls.filter((c: any) => c[1]?.text === handoffRequest.text).length).toBe(1);
+});
+
+test("queued messages do not use up the failed-handoff cap", async () => {
+  const h = harness();
+  await h.finish({ answer: "step 1 done" });
+  for (let i = 0; i < CONFIG.maxFailedAttempts; i++) await h.finish({ queued: true, answer: `queued reply ${i}` });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
+  await h.finish();
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
 });
