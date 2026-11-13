@@ -290,3 +290,16 @@ test("env prompt overrides fill {name} and {role}", async () => {
   await h.finish();
   expect(h.calls[1]).toEqual(["command", { command: "session-resume", args: "fred" }]);
 });
+
+// Under the security default (cc-plugin-sec-default), classic.PostToolUse
+// never reaches keeper; only turn.complete does.
+const handoffRequest = { text: CONFIG.handoffPrompt +
+  "\nEnd your final answer for this turn with a line containing exactly: " + CONFIG.handoffMarker };
+
+test("turn end over the threshold requests the handoff with no PostToolUse at all", async () => {
+  const h = harness();
+  await h.finish({ answer: "step 1 done" });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
+  await h.finish();
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+});
