@@ -117,7 +117,12 @@ usage on the main agent's tool boundaries and adds the request to
 each main turn that ended with a normal answer, under the ceiling: below
 the threshold it re-arms, and over it it submits the request as a new
 prompt, which runs as the next turn. A turn in which PostToolUse already
-asked is the handoff turn, so one crossing gets one request. Parallel
+asked is the handoff turn, so one crossing gets one request. For the
+turn-end request, the handoff turn is the one whose `turn.start` text holds
+the marker instruction; keeper matches its `turnId` at `turn.complete`. A
+message queued before the request (often a teammate's) runs first; its turn
+is not graded, does not count toward `maxFailedAttempts`, and does not
+trigger a second request. Parallel
 callbacks also request only one handoff. Keeper never submits a prompt
 after an aborted, refused or errored turn.
 
