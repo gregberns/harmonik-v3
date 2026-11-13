@@ -73,6 +73,12 @@ export const CONFIG = {
   // applies meanwhile.
   maxFailedAttempts: 3,
 
+  // Main turn ends to wait for a turn-end handoff request to start its turn
+  // (messages queued ahead of it run first). Past this the request is taken
+  // as lost, e.g. the operator deleted it from the queue, and counts as a
+  // failed attempt.
+  maxQueuedTurns: 5,
+
   // Hard ceiling: at the end of any main turn with usage at or over
   // restartAtTokens + ceilingMargin, keeper compacts without asking for a
   // handoff. A refused compaction is retried at every later turn end.
@@ -138,6 +144,7 @@ export function createState() {
     awaitingHandoff: false, // threshold crossed, waiting for the marked answer
     handoffSource: null, // "tool": the current turn carries the request; "turnEnd": a later turn does
     handoffTurnId: undefined, // turnEnd only: the turn that keeper's request started (from turn.start)
+    queuedTurnEnds: 0, // turnEnd only: main turns that ended before the request's turn started
     compactOwed: false, // a compaction was refused; retry at the next turn end
     handoffWritten: false, // the owed compaction follows a completed handoff: send startup after it
     floor: 0, // tokens left by the last compaction; the ceiling never sits below floor + margin
@@ -244,6 +251,9 @@ async function compactNow($, cfg, state, why) {
   const tokensAfter = result && result.tokensAfter;
   log($, `${why}: compaction completed (tokensBefore=${tokensBefore ?? "?"} tokensAfter=${tokensAfter ?? "?"})`);
   const startup = state.handoffWritten;
+  // Any compaction ends the cycle, a ceiling one with a request still
+  // outstanding too; otherwise that request would block every later one.
+  clearHandoffWait(state);
   Object.assign(state, { compactOwed: false, handoffWritten: false, armed: false, failedAttempts: 0,
     floor: Number.isFinite(tokensAfter) ? tokensAfter : 0 });
   if (startup) await submitStartup($, cfg);
@@ -293,7 +303,13 @@ export async function handlePostToolUse($, e, state) {
   return { additionalContext: [handoffRequestText(cfg)] };
 }
 
+function clearHandoffWait(state) {
+  Object.assign(state, { awaitingHandoff: false, handoffSource: null, handoffTurnId: undefined, queuedTurnEnds: 0 });
+}
+
 function rearm($, state) {
+  // Usage below the threshold ends the crossing, and any request still outstanding with it.
+  clearHandoffWait(state);
   if (state.armed) return;
   state.armed = true;
   state.failedAttempts = 0;
@@ -322,16 +338,15 @@ function handoffRequestText(cfg) {
 async function requestHandoffAtTurnEnd($, cfg, state, tokens) {
   // Set before the submit: the handoff turn can end before submit returns,
   // and it must be read as the handoff turn.
+  clearHandoffWait(state);
   state.awaitingHandoff = true;
   state.handoffSource = "turnEnd";
-  state.handoffTurnId = undefined;
   state.armed = false;
   log($, `threshold reached at ${tokens} tokens at turn end; requesting handoff`);
   try {
     await $.prompt.submit({ text: handoffRequestText(cfg) });
   } catch (err) {
-    state.awaitingHandoff = false;
-    state.handoffSource = null;
+    clearHandoffWait(state);
     log($, `handoff request failed: ${errText(err)}`);
     handoffFailed($, cfg, state);
   }
@@ -368,11 +383,18 @@ export async function handleTurnComplete($, e, state) {
   // started is the handoff turn; any other leaves the request outstanding.
   const isHandoffTurn = state.awaitingHandoff && (state.handoffSource === "tool" ||
     (state.handoffTurnId !== undefined && e.turnId === state.handoffTurnId));
-  if (state.awaitingHandoff && !isHandoffTurn) {
-    log($, "a turn ended before the handoff request ran; still waiting for it");
+  if (state.awaitingHandoff && !isHandoffTurn && state.handoffTurnId === undefined) {
+    state.queuedTurnEnds += 1;
+    if (state.queuedTurnEnds >= cfg.maxQueuedTurns) {
+      log($, `the handoff request's turn did not start in ${state.queuedTurnEnds} turn ends; taking it as lost`);
+      clearHandoffWait(state);
+      handoffFailed($, cfg, state);
+    } else {
+      log($, "a turn ended before the handoff request ran; still waiting for it");
+    }
   }
   if (isHandoffTurn) {
-    Object.assign(state, { awaitingHandoff: false, handoffSource: null, handoffTurnId: undefined });
+    clearHandoffWait(state);
     if (e.reason !== "answer") {
       // An explicit user interruption (aborted), a model refusal, or an API
       // error ended this turn instead of a normal answer.
