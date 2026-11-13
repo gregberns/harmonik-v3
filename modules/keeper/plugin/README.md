@@ -122,7 +122,11 @@ turn-end request, the handoff turn is the one whose `turn.start` text holds
 the marker instruction; keeper matches its `turnId` at `turn.complete`. A
 message queued before the request (often a teammate's) runs first; its turn
 is not graded, does not count toward `maxFailedAttempts`, and does not
-trigger a second request. Parallel
+trigger a second request. If the request's turn has not started after
+`maxQueuedTurns` (5) main turn ends, for example because the operator
+deleted it from the queue, keeper takes it as lost and counts a failed
+attempt. Any compaction, and usage seen below the threshold, also ends the
+wait for an outstanding request. Parallel
 callbacks also request only one handoff. Keeper never submits a prompt
 after an aborted, refused or errored turn.
 
