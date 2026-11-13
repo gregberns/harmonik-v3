@@ -1,6 +1,9 @@
 import { test, expect } from "claude-code/testing";
 import { CONFIG, register, parseIntOr, findMarkerLine } from "../hooks/index.js";
 
+const handoffRequest = { text: CONFIG.handoffPrompt +
+  "\nEnd your final answer for this turn with a line containing exactly: " + CONFIG.handoffMarker };
+
 // Invoke actual registered callbacks, including their downstream chain.
 // These fakes check sequencing; live interactive runs prove host behavior.
 function harness(options: any = {}) {
@@ -120,14 +123,19 @@ test("re-arms after a completed cycle only once usage falls below the threshold"
 });
 
 test("abort, refusal, error, or missing final marker never starts, and asks again", async () => {
-  for (const event of [{ reason: "aborted" }, { reason: "refusal" }, { reason: "error" }, { answer: "HANDOFF_READY\nstill working" }]) {
+  for (const event of [{ reason: "aborted" }, { reason: "refusal" }, { reason: "error" }]) {
     const h = harness();
     await h.fire("classic.PostToolUse");
     await h.finish(event);
-    await h.finish();
+    // No prompt goes over an abort, a refusal or an error.
     expect(h.calls).toEqual([]);
     expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
   }
+  // A normal answer without the marker is asked again at that turn end.
+  const h = harness();
+  await h.fire("classic.PostToolUse");
+  await h.finish({ answer: "HANDOFF_READY\nstill working" });
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
   expect(findMarkerLine('Quoted "HANDOFF_READY"', "HANDOFF_READY")).toBe(false);
   expect(findMarkerLine("Done\nHANDOFF_READY\n\n", "HANDOFF_READY")).toBe(true);
 });
@@ -161,13 +169,14 @@ test("ceiling: any main turn end over threshold + margin compacts without a hand
   const ceiling = CONFIG.restartAtTokens + CONFIG.ceilingMargin;
   const h = harness({ tokens: ceiling - 1 });
   await h.finish({ answer: "text-only turn" });
-  expect(h.calls).toEqual([]);
+  // Over the threshold but under the ceiling: a handoff request, no compaction.
+  expect(h.calls).toEqual([["prompt", handoffRequest]]);
   h.setTokens(ceiling);
   await h.finish({ agentId: "child", answer: "subagent turn" });
   await h.finish({ reason: "aborted", answer: "" });
-  expect(h.calls).toEqual([]);
+  expect(h.calls.length).toBe(1);
   await h.finish({ answer: "text-only turn" });
-  expect(h.calls).toEqual([["compact", undefined]]);
+  expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined]]);
 });
 
 test("ceiling: an ignored handoff request still ends in compaction", async () => {
@@ -192,15 +201,17 @@ test("ceiling sits above a heavy post-compaction baseline, so it cannot compact 
 
 test("stops asking after maxFailedAttempts unmarked handoffs, but the ceiling still compacts", async () => {
   const h = harness();
-  for (let i = 0; i < CONFIG.maxFailedAttempts; i++) {
-    expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
-    await h.finish({ answer: "no marker" });
-  }
-  expect(h.calls).toEqual([]);
+  expect((await h.fire("classic.PostToolUse")).additionalContext.length).toBe(2);
+  for (let i = 0; i < CONFIG.maxFailedAttempts; i++) await h.finish({ answer: "no marker" });
+  // The first request came from PostToolUse; each failure but the last asks
+  // again at its turn end.
+  expect(h.calls).toEqual(Array(CONFIG.maxFailedAttempts - 1).fill(["prompt", handoffRequest]));
   expect(await h.fire("classic.PostToolUse")).toEqual(h.sentinel);
+  await h.finish({ answer: "no marker" });
+  expect(h.calls.length).toBe(CONFIG.maxFailedAttempts - 1);
   h.setTokens(CONFIG.restartAtTokens + CONFIG.ceilingMargin);
   await h.finish({ answer: "no marker" });
-  expect(h.calls).toEqual([["compact", undefined]]);
+  expect(h.calls.slice(-1)).toEqual([["compact", undefined]]);
   // Below the threshold after compaction: asks for a handoff again.
   await h.fire("classic.PostToolUse");
   h.setTokens(250000);
@@ -293,8 +304,6 @@ test("env prompt overrides fill {name} and {role}", async () => {
 
 // Under the security default (cc-plugin-sec-default), classic.PostToolUse
 // never reaches keeper; only turn.complete does.
-const handoffRequest = { text: CONFIG.handoffPrompt +
-  "\nEnd your final answer for this turn with a line containing exactly: " + CONFIG.handoffMarker };
 
 test("turn end over the threshold requests the handoff with no PostToolUse at all", async () => {
   const h = harness();
@@ -302,4 +311,27 @@ test("turn end over the threshold requests the handoff with no PostToolUse at al
   expect(h.calls).toEqual([["prompt", handoffRequest]]);
   await h.finish();
   expect(h.calls).toEqual([["prompt", handoffRequest], ["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+});
+
+test("turn end re-arms below the threshold and never requests twice for one crossing", async () => {
+  const h = harness({ tokensAfter: 4000 });
+  // PostToolUse asked this turn: its end is the handoff turn, no second request.
+  await h.fire("classic.PostToolUse");
+  await h.finish();
+  expect(h.calls).toEqual([["compact", undefined], ["prompt", { text: CONFIG.startupPrompt }]]);
+  // Still over the threshold after compaction: no new request until usage is seen below it.
+  h.setTokens(250000);
+  await h.finish({ answer: "work" });
+  expect(h.calls.length).toBe(2);
+  h.setTokens(4000);
+  await h.finish({ answer: "work" });
+  h.setTokens(250000);
+  await Promise.all([h.finish({ answer: "work" }), h.finish({ answer: "work" })]);
+  expect(h.calls.slice(2)).toEqual([["prompt", handoffRequest]]);
+  // An aborted, refused or failed turn end over the threshold never asks.
+  for (const reason of ["aborted", "refusal", "error"]) {
+    const g = harness();
+    await g.finish({ reason, answer: "" });
+    expect(g.calls).toEqual([]);
+  }
 });

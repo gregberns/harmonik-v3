@@ -2,9 +2,10 @@
  * hk3-keeper: a small function-hooks plugin proof of concept.
  *
  * Watches absolute token usage during a running session. Once a low
- * configurable threshold is crossed, it asks the agent (mid-turn, via
- * PostToolUse additionalContext) to write its usual HANDOFF.md and finish
- * with a distinctive marker line. Once that marker shows up in the turn's
+ * configurable threshold is crossed, it asks the agent to write its usual
+ * HANDOFF.md and finish with a distinctive marker line: mid-turn via
+ * PostToolUse additionalContext where that hook fires, else at the end of
+ * the main turn with a new prompt. Once that marker shows up in the turn's
  * final answer (never in quoted tool output), the plugin calls Claude's own
  * `session.compact`, and only on a confirmed success does it auto-submit a
  * configured startup message to resume work. Independently, any main turn
@@ -34,8 +35,8 @@ export const CONFIG = {
   // quoted inside a tool call or tool output.
   handoffMarker: "HANDOFF_READY",
 
-  // Delivered as PostToolUse additionalContext once the threshold is
-  // crossed. Keep it aligned with the project's existing HANDOFF workflow;
+  // Delivered as PostToolUse additionalContext, or as a new prompt at the
+  // end of a main turn, once the threshold is crossed. Keep it aligned with the project's existing HANDOFF workflow;
   // this is a coordination signal, not a new checkpoint protocol.
   handoffPrompt:
     "Context is approaching the configured restart threshold. Please finish " +
@@ -209,12 +210,13 @@ function ceilingOf(cfg, state) {
 }
 
 // handoffFailed: the handoff turn ended without the marker. Ask again at the
-// next tool call unless that has happened maxFailedAttempts times in a row.
+// next tool call or turn end unless that has happened maxFailedAttempts
+// times in a row.
 function handoffFailed($, cfg, state) {
   state.failedAttempts += 1;
   state.armed = state.failedAttempts < cfg.maxFailedAttempts;
   log($, state.armed
-    ? `handoff failed (attempt ${state.failedAttempts} of ${cfg.maxFailedAttempts}); will ask again at the next tool call`
+    ? `handoff failed (attempt ${state.failedAttempts} of ${cfg.maxFailedAttempts}); will ask again at the next tool call or turn end`
     : `handoff failed ${state.failedAttempts} times in a row; not asking again until usage falls below the threshold; compacting without a handoff at ${ceilingOf(cfg, state)} tokens`);
 }
 
@@ -276,21 +278,54 @@ export async function handlePostToolUse($, e, state) {
   log($, `usage observed: ${tokens} tokens (threshold ${cfg.restartAtTokens})`);
 
   if (tokens < cfg.restartAtTokens) {
-    if (!state.armed) {
-      state.armed = true;
-      state.failedAttempts = 0;
-      log($, `usage below the threshold; re-armed`);
-    }
+    rearm($, state);
     return {};
   }
-  // Another concurrent tool handler may have acted while usage was read.
+  // Another concurrent handler may have acted while usage was read.
   if (!state.armed || state.awaitingHandoff || state.compactOwed) return {};
 
   state.awaitingHandoff = true;
   state.armed = false;
   log($, `threshold reached at ${tokens} tokens; requesting handoff`);
-  return { additionalContext: [cfg.handoffPrompt +
-    "\nEnd your final answer for this turn with a line containing exactly: " + cfg.handoffMarker] };
+  return { additionalContext: [handoffRequestText(cfg)] };
+}
+
+function rearm($, state) {
+  if (state.armed) return;
+  state.armed = true;
+  state.failedAttempts = 0;
+  log($, `usage below the threshold; re-armed`);
+}
+
+function handoffRequestText(cfg) {
+  return cfg.handoffPrompt +
+    "\nEnd your final answer for this turn with a line containing exactly: " + cfg.handoffMarker;
+}
+
+// requestHandoffAtTurnEnd: the turn-end path to the handoff request.
+//
+// Why: from Claude Code about 2.1.32x the built-in security plugin
+// cc-plugin-sec-default seats itself outermost for Team/Enterprise
+// organizations and skips every classic.* event for a plugin loaded with
+// --plugin-dir, so classic.PostToolUse never reaches keeper there.
+// turn.complete is not a classic event and still arrives.
+//
+// $.prompt.submit from turn.complete is safe: the prompt runs once idle, and
+// the call resolves when the prompt is entered or queued, not when its turn
+// ends. Startup after compaction goes out the same way.
+async function requestHandoffAtTurnEnd($, cfg, state, tokens) {
+  // Set before the submit: the handoff turn can end before submit returns,
+  // and it must be read as the handoff turn.
+  state.awaitingHandoff = true;
+  state.armed = false;
+  log($, `threshold reached at ${tokens} tokens at turn end; requesting handoff`);
+  try {
+    await $.prompt.submit({ text: handoffRequestText(cfg) });
+  } catch (err) {
+    state.awaitingHandoff = false;
+    log($, `handoff request failed: ${errText(err)}`);
+    handoffFailed($, cfg, state);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -349,9 +384,26 @@ export async function handleTurnComplete($, e, state) {
   // The operator interrupted this turn; leave them in control until the next.
   if (e.reason === "aborted") return passthrough;
   const tokens = await readTokens($);
-  if (tokens !== undefined && tokens >= ceilingOf(cfg, state)) {
+  if (tokens === undefined) return passthrough;
+  if (tokens >= ceilingOf(cfg, state)) {
     await compactNow($, cfg, state, `ceiling reached at ${tokens} tokens`);
+    return passthrough;
   }
+  log($, `usage observed at turn end: ${tokens} tokens (threshold ${cfg.restartAtTokens})`);
+  if (tokens < cfg.restartAtTokens) {
+    rearm($, state);
+    return passthrough;
+  }
+  // Never put a prompt over a refusal or an API error. A handoff turn that
+  // just ended without the marker is asked again here, up to
+  // maxFailedAttempts in a row: under the security default no tool call
+  // would ever ask again.
+  if (e.reason !== "answer") return passthrough;
+  // A PostToolUse request this turn already set awaitingHandoff, and a
+  // concurrent turn end may have acted while usage was read: one request
+  // per crossing.
+  if (!state.armed || state.awaitingHandoff || state.compactOwed) return passthrough;
+  await requestHandoffAtTurnEnd($, cfg, state, tokens);
   return passthrough;
 }
 
